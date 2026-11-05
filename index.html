@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Hatchling</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main>
+    <h1>Hatchling</h1>
+
+    <section id="egg" hidden>
+      <div id="eggart"></div>
+      <button id="hatchbtn">Hatch the egg</button>
+      <div id="namebox" hidden>
+        <p id="got"></p>
+        <input id="nm" maxlength="16" placeholder="Name your pet" aria-label="Pet name">
+        <button id="go">Start</button>
+      </div>
+    </section>
+
+    <section id="game" hidden>
+      <div id="stage">
+        <div id="pet"></div>
+        <div id="fx"></div>
+      </div>
+      <h2 id="pname"></h2>
+      <p id="meta"></p>
+      <div class="bars">
+        <label>Hunger<div class="bar"><i id="bh"></i></div></label>
+        <label>Happiness<div class="bar"><i id="bp"></i></div></label>
+        <label id="xl">Growth<div class="bar"><i id="bx"></i></div></label>
+      </div>
+      <div id="tasks"></div>
+      <div id="act"></div>
+      <p id="toast" role="status"></p>
+    </section>
+  </main>
+  <script src="game.js"></script>
+</body>
+</html>
