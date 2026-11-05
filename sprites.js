@@ -37,3 +37,7 @@ const EGG = px(mir(['.....ooo','...ooeee','..oeeeee','..oeesee','.oeeeeee','.oee
 const APPLE = px(['....sg..','..oosoo.','.orrrrro','orrhrrro','orrrrrro','orrrrrro','.orrrrro','..oo.oo.'], {o:INK, r:'#e5484d', h:'#ff9a9a', s:'#6b4423', g:'#4aa05a'});
 const BALL = px(['..oooo..','.orrrro.','orwwrrro','orwrrrro','orrrrrro','orrrrrro','.orrrro.','..oooo..'], {o:INK, r:'#e5484d', w:'#ffb3b3'});
 const HEART = px(['.rr.rr.','rrrrrrr','rrrrrrr','.rrrrr.','..rrr..','...r...'], {r:'#e5484d'});
+const HAND = (() => {
+  const top = '.' + 'o'.repeat(13), palm = '.o' + 's'.repeat(11) + 'o', fing = '.ossossossosso';
+  return px([top, palm, palm, palm, fing, fing, fing, '..oo.oo.oo.oo.'], {o:INK, s:'#f2c9a0'});
+})();
