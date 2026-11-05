@@ -26,6 +26,9 @@ const heart = () => spawn('heart', HEART, (35 + R(30)) + '%', (25 + R(20)) + '%'
 function line(t){ const p = document.createElement('p'); p.textContent = t; act.append(p); return p }
 function btn(label, fn){ const b = document.createElement('button'); b.textContent = label; b.onclick = () => fn(b); act.append(b); return b }
 
+let toastT;
+function toast(t){ const e = $('#toast'); e.textContent = t; clearTimeout(toastT); if (t) toastT = setTimeout(() => { e.textContent = '' }, 5000) }
+
 function finish(t, ok){
   const n = needs(); S.hunger = n.h; S.happy = n.p; S.t = Date.now();
   const sad = n.h < 30 || n.p < 30, g = ok ? Math.round(t.xp * (sad ? .5 : 1)) : 0;
@@ -33,7 +36,7 @@ function finish(t, ok){
   if (t.hunger) S.hunger = Math.min(100, S.hunger + t.hunger);
   if (t.happy && ok) S.happy = Math.min(100, S.happy + t.happy);
   S.cd[t.id] = Date.now() + CD; save(); act.replaceChildren(); draw();
-  $('#toast').textContent = ok ? `+${g} XP${sad && g ? ' (half, your pet is sad)' : ''}` : 'Not quite. No XP this time.';
+  toast(ok ? `+${g} XP${sad && g ? ' (half, your pet is sad)' : ''}` : 'Not quite. No XP this time.');
 }
 
 // tasks
@@ -54,18 +57,15 @@ const run = {
     });
   },
   pet(t){
-    let d = 0, n = 0, lx = null; const need = 6, info = line('Stroke your pet: 0/' + need);
-    const stop = () => { P.onpointerdown = P.onpointerup = P.onpointerleave = P.onpointermove = null };
-    P.onpointerdown = e => { lx = e.clientX };
-    P.onpointerup = P.onpointerleave = () => { lx = null };
-    P.onpointermove = e => {
-      if (lx === null) return;
-      d += Math.abs(e.clientX - lx); lx = e.clientX;
-      if (d >= 80) {
-        d = 0; n++; fx(P, 'love', 500); heart(); info.textContent = `Stroke your pet: ${n}/${need}`;
-        if (n >= need) { stop(); finish(t, true) }
-      }
-    };
+    line('Give your pet some love.');
+    btn('Pet', b => {
+      b.disabled = true;
+      const h = document.createElement('span'); h.className = 'hand'; h.innerHTML = HAND; P.append(h);
+      setTimeout(() => h.remove(), 2300);
+      fx(P, 'love', 1700);
+      [500, 900, 1300, 1700].forEach(ms => setTimeout(heart, ms));
+      setTimeout(() => finish(t, true), 2400);
+    });
   },
   clean(t){
     let left = 6; const info = line('Pop the bubbles: 6 left');
@@ -81,7 +81,7 @@ const run = {
     o.forEach(v => { const b = document.createElement('button'); b.textContent = v; b.onclick = () => finish(t, v === a); w.append(b) }); act.append(w);
   }
 };
-function openTask(t){ act.replaceChildren(); $('#fx').replaceChildren(); $('#toast').textContent = ''; run[t.id](t) }
+function openTask(t){ act.replaceChildren(); $('#fx').replaceChildren(); toast(''); run[t.id](t) }
 
 // view
 function draw(){
@@ -89,7 +89,8 @@ function draw(){
   P.style.setProperty('--s', [96,120,144,168,168][st] + 'px'); P.classList.toggle('elder', st === 4); P.classList.toggle('sad', sad);
   if (!P.firstChild || P.dataset.k !== `${S.species}${st}${sad}`) { P.innerHTML = art(S.species, st, sad); P.dataset.k = `${S.species}${st}${sad}` }
   $('#pname').textContent = S.name;
-  $('#meta').textContent = `${SP[S.species].n} · ${STAGES[st][1]} · age ${Math.floor(age)} · ${S.xp} XP${sad ? ' · sad' : ''}`;
+  $('#s-sp').textContent = SP[S.species].n; $('#s-st').textContent = STAGES[st][1]; $('#s-age').textContent = Math.floor(age); $('#s-xp').textContent = S.xp;
+  $('#s-mood').textContent = sad ? 'Sad' : (n.h >= 60 && n.p >= 60 ? 'Happy' : 'Okay'); $('#stats').classList.toggle('sad', sad);
   $('#bx').style.width = (age >= 100 ? 100 : (age % 1) * 100) + '%'; tick();
 }
 function tick(){
@@ -115,4 +116,37 @@ function showEgg(){
   $('#go').onclick = () => { const nm = $('#nm').value.trim(); if (!nm) return $('#nm').focus();
     S = {name:nm, species:sp, xp:0, hunger:80, happy:80, t:Date.now(), cd:{}}; save(); showGame() };
 }
+
+// Admin test tools. The code is checked against a hash, but this is client-side only: it hides nothing from anyone who reads the page source.
+const ADMIN_HASH = '56222f8c0009a263619b977ad396d1f224567e60db09fe5642bba6a4699d8727';
+let adminOn = false;
+async function sha(x){ const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(x)); return [...new Uint8Array(b)].map(v => v.toString(16).padStart(2, '0')).join('') }
+function xpForAge(a){ let x = 0; for (const [lo,hi,c] of BANDS){ if (a >= hi) x += c; else { x += c * (a - lo) / (hi - lo); break } } return Math.round(x) }
+function adminSet(fn){
+  if (!S) { S = {name:'Test', species:'cat', xp:0, hunger:100, happy:100, t:Date.now(), cd:{}}; save(); showGame() }
+  fn(); save(); P.dataset.k = ''; draw();
+}
+function adminPanel(){
+  if ($('#admin')) return $('#admin').remove();
+  const d = document.createElement('div'); d.id = 'admin';
+  const grp = (title, items) => {
+    const l = document.createElement('p'); l.textContent = title; d.append(l);
+    const w = document.createElement('div'); w.className = 'opts wrap';
+    items.forEach(([n, f]) => { const b = document.createElement('button'); b.textContent = n; b.onclick = f; w.append(b) }); d.append(w);
+  };
+  grp('Animal', Object.keys(SP).map(k => [SP[k].n, () => adminSet(() => { S.species = k })]));
+  grp('Stage', STAGES.map(s => [s[1], () => adminSet(() => { S.xp = xpForAge(s[0]) })]));
+  grp('Needs', [['Fill', () => adminSet(() => { S.hunger = S.happy = 100; S.t = Date.now() })], ['Sad', () => adminSet(() => { S.hunger = S.happy = 10; S.t = Date.now() })], ['No cooldowns', () => adminSet(() => { S.cd = {} })]]);
+  grp('Pet', [['New egg', () => { localStorage.removeItem(KEY); location.reload() }]]);
+  document.body.append(d);
+}
+$('#adminbtn').onclick = async () => {
+  if (!adminOn) {
+    const c = prompt('Admin code'); if (c === null) return;
+    try { if (await sha(c) !== ADMIN_HASH) return alert('Wrong code') } catch (e) { return alert('Admin needs https or localhost') }
+    adminOn = true;
+  }
+  adminPanel();
+};
+
 S ? showGame() : showEgg();
