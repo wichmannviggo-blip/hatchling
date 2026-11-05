@@ -1,60 +1,65 @@
-:root{--ink:#1d2733;--mute:#66758a;--bg:#eef2f6;--line:#d5dde6;--acc:#2f6fed;--ok:#2f9e72}
+:root{--ink:#1d1830;--mute:#55607a;--panel:#e9eef7;--bg:#2b4468;--btn:#f2b134;--ok:#3aa56b}
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.4 "Nunito",system-ui,sans-serif}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 18px/1.35 "Pixelify Sans",ui-monospace,monospace}
 main{max-width:480px;margin:0 auto;padding:24px 16px 48px}
-h1{margin:0 0 16px;font-size:26px}
-h2{margin:12px 0 0;font-size:22px;text-align:center}
-#meta,#toast{margin:4px 0 0;text-align:center;color:var(--mute)}
-#toast{min-height:22px;color:var(--ok);font-weight:700}
-button{font:inherit;font-weight:700;border:0;border-radius:10px;padding:11px 16px;min-height:44px;background:var(--acc);color:#fff;cursor:pointer}
-button:disabled{background:var(--line);color:var(--mute);cursor:default}
-button:focus-visible,input:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
-input{font:inherit;width:100%;padding:11px;margin:8px 0;border:2px solid var(--line);border-radius:10px}
+h1{margin:0 0 18px;font-size:34px;font-weight:600;color:#fff;text-shadow:3px 3px 0 var(--ink)}
+h2{margin:14px 0 0;font-size:26px;font-weight:600;text-align:center}
+#egg,#game{background:var(--panel);border:4px solid var(--ink);box-shadow:6px 6px 0 var(--ink);padding:16px}
+#meta,#toast{margin:2px 0 0;text-align:center;color:var(--mute)}
+#toast{min-height:24px;color:var(--ok);font-weight:600}
+button{font:inherit;font-weight:600;color:var(--ink);background:var(--btn);border:3px solid var(--ink);box-shadow:0 4px 0 var(--ink);padding:8px 10px;min-height:44px;cursor:pointer}
+button:active:not(:disabled){transform:translateY(3px);box-shadow:0 1px 0 var(--ink)}
+button:disabled{background:#c9d1de;color:var(--mute);box-shadow:0 4px 0 #8b95a8;border-color:#8b95a8;cursor:default}
+button:focus-visible,input:focus-visible{outline:3px solid #fff;outline-offset:2px}
+input{font:inherit;width:100%;padding:10px;margin:8px 0 12px;border:3px solid var(--ink);background:#fff}
 #egg{text-align:center}
-#eggart svg{width:200px;height:200px}
-#egg button{width:100%;margin-top:8px}
+#egg button{width:100%;margin-top:10px}
+#eggart svg{width:192px;height:192px;image-rendering:pixelated}
 
-#stage{position:relative;height:300px;border-radius:16px;overflow:hidden;background:linear-gradient(#cfe3f2 72%,#9bd08f 72%)}
-#pet{position:absolute;left:50%;bottom:16%;width:190px;height:190px;margin-left:-95px;touch-action:none;cursor:grab}
-#pet svg{width:100%;height:100%;display:block}
+#stage{position:relative;height:300px;overflow:hidden;border:4px solid var(--ink);
+ background:linear-gradient(#9fd4f0 0 25%,#b4def4 25% 50%,#c9e8f8 50% 72%,#6dbb5f 72% 80%,#58a84f 80%)}
+#pet{--s:168px;position:absolute;left:50%;bottom:14%;width:var(--s);height:var(--s);margin-left:calc(var(--s) / -2);touch-action:none;cursor:grab}
+#pet svg{display:block;width:100%;height:100%;image-rendering:pixelated;animation:idle 1.2s steps(1) infinite}
+.sad svg{filter:saturate(.45);animation-duration:2.4s}
+.elder svg{filter:grayscale(.6)}
+@keyframes idle{50%{transform:translateY(-4px)}}
 #fx{position:absolute;inset:0;pointer-events:none}
 #fx>*{position:absolute;pointer-events:auto}
+#fx svg{display:block;width:100%;image-rendering:pixelated}
 
-.bars{display:grid;gap:8px;margin-top:14px}
-.bars label{font-size:13px;font-weight:700;color:var(--mute)}
-.bar{height:12px;margin-top:3px;border-radius:6px;background:var(--line);overflow:hidden}
-.bar i{display:block;height:100%;width:0;background:var(--ok);transition:width .4s}
-#tasks{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:16px}
-#tasks button{padding:10px 2px;font-size:14px}
-#act{margin-top:12px;display:grid;gap:8px}
-#act p{margin:0;color:var(--mute);text-align:center}
+.bars{display:grid;gap:10px;margin-top:14px}
+.bars label{font-size:15px;color:var(--mute)}
+.bar{height:16px;margin-top:3px;border:3px solid var(--ink);background:#fff}
+.bar i{display:block;height:100%;width:0;background:repeating-linear-gradient(90deg,var(--ok) 0 8px,#2c8a58 8px 10px);transition:width .4s steps(8)}
+#tasks{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:18px}
+#tasks button{padding:8px 0;font-size:15px}
+#act{margin-top:14px;display:grid;gap:10px}
+#act p{margin:0;text-align:center;color:var(--mute)}
 .opts{display:flex;gap:8px}.opts button{flex:1}
 
-/* feeding */
-.food{left:50%;top:0;width:36px;margin-left:-18px;animation:drop .9s ease-in forwards}
-@keyframes drop{0%{transform:translateY(-40px);opacity:0}15%{opacity:1}85%{transform:translateY(140px) scale(1);opacity:1}100%{transform:translateY(155px) scale(.2);opacity:0}}
-.mo{opacity:0}
-.eat .mo{opacity:1}
-.eat{animation:eat .32s ease-in-out 4}
-@keyframes eat{50%{transform:scale(1.07,.91)}}
+.food{left:50%;top:0;width:44px;margin-left:-22px;animation:drop .9s steps(10) forwards}
+@keyframes drop{0%{transform:translateY(-40px);opacity:0}15%{opacity:1}85%{transform:translateY(140px);opacity:1}100%{transform:translateY(155px) scale(.2);opacity:0}}
+.m{fill:var(--ink)}
+.eat .m{fill:#d6384a}
+.eat{animation:eat .32s steps(2) 4}
+@keyframes eat{50%{transform:scale(1.08,.9)}}
 
-/* playing */
-.ball{width:28px;height:28px;border-radius:50%;background:#e5484d;box-shadow:inset -5px -5px 0 rgba(0,0,0,.15);animation:fly 1.1s linear forwards,arc 1.1s ease-in-out forwards}
+.ball{width:36px;animation:fly 1.1s steps(18) forwards,arc 1.1s steps(18) forwards}
 @keyframes fly{from{left:8%}to{left:80%}}
-@keyframes arc{0%,100%{bottom:16%}45%{bottom:62%}}
-.chase{animation:chase 1.4s ease-in-out}
+@keyframes arc{0%,100%{bottom:14%}45%{bottom:60%}}
+.chase{animation:chase 1.4s steps(14)}
 @keyframes chase{0%,100%{transform:translate(0,0)}25%{transform:translate(40px,-60px)}50%{transform:translate(95px,0)}62%{transform:translate(95px,-45px)}78%{transform:translate(95px,0)}}
 
-/* petting */
-.love{animation:love .5s ease-in-out}
+.love{animation:love .5s steps(3)}
 @keyframes love{25%{transform:rotate(-4deg) scale(1.04,.96)}75%{transform:rotate(4deg) scale(.96,1.04)}}
-.heart{color:#e5486b;font-size:26px;animation:float 1s ease-out forwards}
+.heart{width:30px;animation:float 1s steps(6) forwards}
 @keyframes float{to{transform:translateY(-70px);opacity:0}}
 
-/* cleaning */
-.bubble{width:46px;height:46px;border-radius:50%;border:3px solid #fff;background:rgba(255,255,255,.35);padding:0;min-height:0}
-.bubble:hover{background:rgba(255,255,255,.6)}
-.pop{animation:pop .2s forwards}
+.bubble{width:46px;height:46px;border:0;padding:0;min-height:0;box-shadow:none;background:rgba(255,255,255,.75);
+ clip-path:polygon(30% 0,70% 0,100% 30%,100% 70%,70% 100%,30% 100%,0 70%,0 30%)}
+.pop{animation:pop .2s steps(2) forwards}
 @keyframes pop{to{transform:scale(1.6);opacity:0}}
+.shake{animation:shake .7s steps(7)}
+@keyframes shake{20%{transform:rotate(-8deg)}40%{transform:rotate(8deg)}60%{transform:rotate(-8deg)}80%{transform:rotate(8deg)}}
 
 @media (prefers-reduced-motion:reduce){*{animation-duration:.01s!important;transition:none!important}}
