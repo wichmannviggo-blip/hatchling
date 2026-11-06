@@ -42,9 +42,12 @@ const HAND = (() => {
   return px([top, palm, palm, palm, fing, fing, fing, '..oo.oo.oo.oo.'], {o:INK, s:'#f2c9a0'});
 })();
 const PENCIL = px(['......oo','.....oeo','....oyo.','...oyo..','..oyo...','.oppo...','.opo....','.oo.....'], {o:INK, e:'#e5758a', y:'#f2b134', p:'#f2c9a0'});
-const BUBBLE = (() => {
-  const n = 20, c = (n - 1) / 2, rows = [];
-  for (let y = 0; y < n; y++) { let r = ''; for (let x = 0; x < n; x++) { const d = Math.hypot(x - c, y - c); r += d > n / 2 ? '.' : d > n / 2 - 1.3 ? 'w' : 'f' } rows.push(r) }
-  rows[4] = rows[4].slice(0, 5) + 'hh' + rows[4].slice(7); rows[5] = rows[5].slice(0, 4) + 'h' + rows[5].slice(5);
-  return px(rows, {w:'rgba(90,170,230,.95)', f:'rgba(255,255,255,.28)', h:'#fff'});
+const SUN = (() => {
+  const n = 16, c = 7.5, rows = [];
+  for (let y = 0; y < n; y++) { let r = ''; for (let x = 0; x < n; x++) {
+    const d = Math.hypot(x - c, y - c), a = Math.abs(x - c), b = Math.abs(y - c);
+    r += d <= 4 ? 'y' : d <= 5.2 ? 'o' : (d > 6.3 && d <= 8 && (a < 1.1 || b < 1.1 || Math.abs(a - b) < 1.1)) ? 'r' : '.';
+  } rows.push(r) }
+  return px(rows, {y:'#ffe066', o:'#f2a81d', r:'#ffd84a'});
 })();
+const TREE = px(mir(['.....oo','...oogg','..oghhg','.oghhgg','.oggggg','oggghgg','ogggddd','.ogggdd','..ooddd','....ott','....ott','....ott','...ottt']), {o:INK, g:'#3f9b4a', h:'#62bf62', d:'#2f7d3a', t:'#8a5a32'});
