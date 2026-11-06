@@ -33,12 +33,14 @@ function toast(t){ const e = $('#toast'); e.textContent = t; clearTimeout(toastT
 
 function finish(t, ok){
   const n = needs(); S.hunger = n.h; S.happy = n.p; S.t = Date.now();
-  const sad = n.h < 30 || n.p < 30, g = ok ? Math.round(t.xp * (sad ? .5 : 1)) : 0;
+  const mine = S.req && S.req.id === t.id, late = mine && Date.now() - S.req.at > 30 * 60e3;
+  const g = ok ? Math.round(t.xp * (late ? .5 : 1)) : 0;
   S.xp += g;
-  if (t.hunger) S.hunger = Math.min(100, S.hunger + t.hunger);
+  if (t.hunger && ok) S.hunger = Math.min(100, S.hunger + t.hunger);
   if (t.happy && ok) S.happy = Math.min(100, S.happy + t.happy);
-  S.cd[t.id] = Date.now() + CD; save(); act.replaceChildren(); draw();
-  toast(ok ? `+${g} XP${sad && g ? ' (half, your pet is sad)' : ''}` : 'Not quite. No XP this time.');
+  if (mine && ok) { S.req = null; schedule() }
+  save(); act.replaceChildren(); draw();
+  toast(ok ? `+${g} XP${late && g ? ' (half, it waited a long time)' : ''}` : 'Not quite. Try again.');
 }
 
 // tasks
@@ -92,17 +94,17 @@ function draw(){
   if (!P.firstChild || P.dataset.k !== `${S.species}${st}${sad}`) { P.innerHTML = art(S.species, st, sad); P.dataset.k = `${S.species}${st}${sad}` }
   $('#pname').textContent = S.name; $('#set-name').textContent = S.name;
   $('#s-sp').textContent = SP[S.species].n; $('#s-st').textContent = STAGES[st][1]; $('#s-age').textContent = Math.floor(age); $('#s-xp').textContent = S.xp;
-  $('#s-mood').textContent = sad ? 'Sad' : (n.h >= 60 && n.p >= 60 ? 'Happy' : 'Okay'); $('#stats').classList.toggle('sad', sad);
-  $('#bx').style.width = (age >= 100 ? 100 : (age % 1) * 100) + '%'; tick();
+  $('#s-mood').textContent = n.h < 30 ? 'Hungry' : n.p < 30 ? 'Lonely' : (n.h >= 60 && n.p >= 60 ? 'Happy' : 'Okay'); $('#stats').classList.toggle('sad', sad);
+  $('#bx').style.width = (age >= 100 ? 100 : (age % 1) * 100) + '%'; renderReq(); tick();
 }
 function tick(){
-  if (!S) return; const n = needs(); $('#bh').style.width = n.h + '%'; $('#bp').style.width = n.p + '%';
-  TASKS.forEach(t => { const b = $('#t-' + t.id), r = (S.cd[t.id] || 0) - Date.now();
-    if (r > 0) { b.disabled = true; const s = Math.ceil(r / 1e3); b.textContent = `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}` } else { b.disabled = false; b.textContent = t.n } });
+  if (!S) return; const n = needs();
+  $('#bh').style.width = n.h + '%'; $('#bp').style.width = n.p + '%'; $('#lh').hidden = n.h >= 35;   // hunger only shows when really hungry
+  if (!S.req && Date.now() >= S.next) makeRequest(pick(n));
 }
 function showGame(){
   $('#egg').hidden = true; $('#game').hidden = false; $('#tabs').hidden = false; initDrag();
-  TASKS.forEach(t => { const b = document.createElement('button'); b.id = 't-' + t.id; b.onclick = () => openTask(t); $('#tasks').append(b) });
+  if (!S.next) schedule();
   draw(); setInterval(() => { tick(); draw() }, 1000);
 }
 function showEgg(){
@@ -116,7 +118,7 @@ function showEgg(){
     }, 700);
   };
   $('#go').onclick = () => { const nm = $('#nm').value.trim(); if (!nm) return $('#nm').focus();
-    S = {name:nm, species:sp, xp:0, hunger:80, happy:80, t:Date.now(), cd:{}}; save(); showGame() };
+    S = {name:nm, species:sp, xp:0, hunger:80, happy:80, t:Date.now(), cd:{}, req:null, renamed:0}; schedule(); save(); showGame() };
 }
 
 // Admin test tools. The code is checked against a hash, but this is client-side only: it hides nothing from anyone who reads the page source.
@@ -125,7 +127,7 @@ let adminOn = false;
 async function sha(x){ const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(x)); return [...new Uint8Array(b)].map(v => v.toString(16).padStart(2, '0')).join('') }
 function xpForAge(a){ let x = 0; for (const [lo,hi,c] of BANDS){ if (a >= hi) x += c; else { x += c * (a - lo) / (hi - lo); break } } return Math.round(x) }
 function adminSet(fn){
-  if (!S) { S = {name:'Test', species:'cat', xp:0, hunger:100, happy:100, t:Date.now(), cd:{}}; save(); showGame() }
+  if (!S) { S = {name:'Test', species:'cat', xp:0, hunger:100, happy:100, t:Date.now(), cd:{}, req:null, next:Date.now() + 3e5, renamed:0}; save(); showGame() }
   fn(); save(); P.dataset.k = ''; draw();
 }
 function adminPanel(){
@@ -138,7 +140,8 @@ function adminPanel(){
   };
   grp('Animal', Object.keys(SP).map(k => [SP[k].n, () => adminSet(() => { S.species = k })]));
   grp('Stage', STAGES.map(s => [s[1], () => adminSet(() => { S.xp = xpForAge(s[0]) })]));
-  grp('Needs', [['Fill', () => adminSet(() => { S.hunger = S.happy = 100; S.t = Date.now() })], ['Sad', () => adminSet(() => { S.hunger = S.happy = 10; S.t = Date.now() })], ['No cooldowns', () => adminSet(() => { S.cd = {} })]]);
+  grp('Needs', [['Fill', () => adminSet(() => { S.hunger = S.happy = 100; S.t = Date.now() })], ['Sad', () => adminSet(() => { S.hunger = S.happy = 10; S.t = Date.now() })]]);
+  grp('Request', [...TASKS.map(t => [t.n, () => adminSet(() => makeRequest(t.id))]), ['Clear', () => adminSet(() => { S.req = null; schedule() })]]);
   grp('Pet', [['New egg', () => { localStorage.removeItem(KEY); location.reload() }]]);
   document.body.append(d);
 }
@@ -157,7 +160,7 @@ $('#adminbtn').onclick = async () => {
 const sb = (window.supabase && typeof SUPABASE_URL === 'string' && SUPABASE_URL.startsWith('http')) ? supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
 let user = null, username = '', mode = 'in';
 const UKEY = KEY + '-user';
-const toRow = () => ({user_id: user.id, name: S.name, species: S.species, xp: S.xp, state: {hunger: S.hunger, happy: S.happy, t: S.t, cd: S.cd}, updated: S.u});
+const toRow = () => ({user_id: user.id, name: S.name, species: S.species, xp: S.xp, state: (({name, species, xp, u, ...rest}) => rest)(S), updated: S.u});
 const fromRow = r => ({name: r.name, species: r.species, xp: r.xp, ...r.state, u: r.updated});
 const screen = id => ['auth', 'verify', 'uname'].forEach(x => { $('#' + x).hidden = x !== id });
 
@@ -247,15 +250,25 @@ $('#tab-pet').onclick = () => showTab('pet'); $('#tab-board').onclick = () => sh
 $('#logout').onclick = async () => { await sb.auth.signOut(); localStorage.removeItem(KEY); localStorage.removeItem(UKEY); location.reload() };
 // ---- pet name, settings, dragging ----
 const CFGKEY = KEY + '-cfg';
-const cfg = Object.assign({anim: true}, JSON.parse(localStorage.getItem(CFGKEY) || '{}'));
-function applyCfg(){ document.body.classList.toggle('no-anim', !cfg.anim); $('#set-anim').textContent = cfg.anim ? 'On' : 'Off'; localStorage.setItem(CFGKEY, JSON.stringify(cfg)) }
+const cfg = Object.assign({anim: true, notify: false}, JSON.parse(localStorage.getItem(CFGKEY) || '{}'));
+function applyCfg(){ document.body.classList.toggle('no-anim', !cfg.anim); $('#set-anim').textContent = cfg.anim ? 'On' : 'Off'; $('#set-notify').textContent = cfg.notify ? 'On' : 'Off'; localStorage.setItem(CFGKEY, JSON.stringify(cfg)) }
 $('#set-anim').onclick = () => { cfg.anim = !cfg.anim; applyCfg() }; applyCfg();
 
-$('#rename').innerHTML = PENCIL;
-function openRename(){ $('#namerow').hidden = true; $('#nameedit').hidden = false; const i = $('#ne'); i.value = S.name; i.focus(); i.select() }
+$('#pencil').innerHTML = PENCIL;
+function openRename(){
+  const left = (S.renamed || 0) + 3600e3 - Date.now();
+  if (left > 0) return toast(`You can rename ${S.name} again in ${Math.ceil(left / 6e4)} min.`);
+  $('#namerow').hidden = true; $('#nameedit').hidden = false; const i = $('#ne'); i.value = S.name; i.focus(); i.select();
+}
 function closeRename(){ $('#nameedit').hidden = true; $('#namerow').hidden = false }
-function saveRename(){ const v = $('#ne').value.trim(); if (!v) return $('#ne').focus(); S.name = v.slice(0, 16); save(); closeRename(); draw() }
-$('#rename').onclick = openRename; $('#nesave').onclick = saveRename; $('#necancel').onclick = closeRename;
+function saveRename(){
+  const v = $('#ne').value.trim().slice(0, 16); if (!v) return $('#ne').focus();
+  if (v !== S.name) { S.name = v; S.renamed = Date.now(); save() }
+  closeRename(); draw();
+}
+$('#pname').onclick = $('#pencil').onclick = openRename;
+$('#pname').onkeydown = e => { if (e.key === 'Enter') openRename() };
+$('#nesave').onclick = saveRename; $('#necancel').onclick = closeRename;
 $('#ne').onkeydown = e => { if (e.key === 'Enter') saveRename(); if (e.key === 'Escape') closeRename() };
 
 $('#tab-settings').onclick = () => showTab('settings');
@@ -267,10 +280,10 @@ $('#set-reset').onclick = async () => {
   localStorage.removeItem(KEY); location.reload();
 };
 
-// Dragging: the pet slides left and right along the grass, held inside a bubble until it's released.
+// Dragging: the pet slides left and right along the grass.
 function initDrag(){
   if (initDrag.done) return; initDrag.done = true;
-  let drag = false, off = 0, bub = null;
+  let drag = false, off = 0;
   const move = e => {
     const r = $('#stage').getBoundingClientRect(), half = P.offsetWidth / 2 / r.width;
     P.style.left = Math.min(1 - half, Math.max(half, (e.clientX - off - r.left) / r.width)) * 100 + '%';
@@ -278,15 +291,47 @@ function initDrag(){
   P.addEventListener('pointerdown', e => {
     drag = true; P.setPointerCapture(e.pointerId); P.classList.add('held');
     off = e.clientX - (P.getBoundingClientRect().left + P.offsetWidth / 2);
-    bub = document.createElement('span'); bub.className = 'bub'; bub.innerHTML = BUBBLE; P.append(bub);
   });
   P.addEventListener('pointermove', e => { if (drag) move(e) });
-  const end = () => {
-    if (!drag) return; drag = false; P.classList.remove('held');
-    const b = bub; b.classList.add('pop'); setTimeout(() => b.remove(), 200);
-  };
+  const end = () => { drag = false; P.classList.remove('held') };
   P.addEventListener('pointerup', end); P.addEventListener('pointercancel', end);
 }
+
+// ---- the pet asks for things on its own ----
+const MSG = {feed:'is hungry!', play:'wants to play!', pet:'feels lonely. Give it some love.', clean:'got dirty!', quiz:'is bored and wants a challenge!'};
+const nextIn = () => (300 + R(301)) * 1000;                       // 5 to 10 minutes
+const schedule = () => { S.next = Date.now() + nextIn() };
+function pick(n){
+  if (n.h < 30) return 'feed';                                    // really hungry: it needs food
+  if (n.p < 30) return Math.random() < .5 ? 'pet' : 'play';       // lonely: it needs company
+  let r = R(9); for (const [id, k] of [['feed', 3], ['pet', 2], ['play', 2], ['clean', 1], ['quiz', 1]]) { if ((r -= k) < 0) return id }
+}
+function makeRequest(id){
+  const n = needs(); S.hunger = n.h; S.happy = n.p; S.t = Date.now();
+  if (id === 'feed') S.hunger = Math.min(S.hunger, 25);
+  if (id === 'pet' || id === 'play') S.happy = Math.min(S.happy, 25);
+  if (id === 'clean') S.happy = Math.min(S.happy, 45);
+  S.req = {id, at: Date.now()}; save(); draw();
+  if (cfg.notify && 'Notification' in window && Notification.permission === 'granted' && document.hidden) {
+    try { new Notification('Hatchling', {body: `${S.name} ${MSG[id]}`}) } catch (e) {}
+  }
+}
+function renderReq(){
+  const key = (S.req ? S.req.id : '') + '|' + S.name, w = $('#tasks');
+  if (w.dataset.k === key) return; w.dataset.k = key; w.replaceChildren();
+  document.title = S.req ? '(1) Hatchling' : 'Hatchling';
+  if (!S.req) { $('#need').textContent = `${S.name} is fine for now.`; return }
+  const t = TASKS.find(x => x.id === S.req.id), b = document.createElement('button');
+  b.className = 'req'; b.textContent = t.n; b.onclick = () => openTask(t); w.append(b);
+  $('#need').textContent = `${S.name} ${MSG[S.req.id]}`;
+}
+$('#set-notify').onclick = async () => {
+  if (cfg.notify) cfg.notify = false;
+  else if (!('Notification' in window)) return alert('This browser doesn’t support notifications.');
+  else { cfg.notify = (await Notification.requestPermission()) === 'granted'; if (!cfg.notify) alert('Notifications are blocked. Allow them in your browser’s site settings, then try again.') }
+  applyCfg();
+};
+$('#sun').innerHTML = SUN; $('#tree').innerHTML = TREE;
 
 $('#authlogo').innerHTML = EGG; setMode('in');
 (async () => {
