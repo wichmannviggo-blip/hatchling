@@ -11,6 +11,15 @@
   <main>
     <h1>Hatchling</h1>
 
+    <section id="auth" hidden>
+      <p>Log in to keep your pet on every device and join the global leaderboard.</p>
+      <input id="em" type="email" placeholder="Email" autocomplete="email" aria-label="Email">
+      <input id="pw" type="password" placeholder="Password (6+ characters)" autocomplete="current-password" aria-label="Password">
+      <p id="aerr" role="alert"></p>
+      <div class="opts"><button id="login">Log in</button><button id="signup">Sign up</button></div>
+      <button id="guest">Play without an account</button>
+    </section>
+
     <section id="egg" hidden>
       <div id="eggart"></div>
       <button id="hatchbtn">Hatch the egg</button>
@@ -42,10 +51,17 @@
       <div id="tasks"></div>
       <div id="act"></div>
       <p id="toast" role="status"></p>
+      <div id="lbbox">
+        <h3>Leaderboard</h3>
+        <div id="lb"></div>
+        <button id="logout" hidden>Log out</button>
+      </div>
     </section>
   </main>
   <button id="adminbtn">Admin</button>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
   <script src="sprites.js"></script>
+  <script src="config.js"></script>
   <script src="game.js"></script>
 </body>
 </html>
