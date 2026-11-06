@@ -24,7 +24,7 @@ function spawn(cls, html, x, y, ms){
   $('#fx').append(e); if (ms) setTimeout(() => e.remove(), ms); return e;
 }
 const petX = () => parseFloat(P.style.left) || 50;
-const heart = () => spawn('heart', HEART, (petX() - 8 + R(16)) + '%', (25 + R(20)) + '%', 1000);
+const heart = () => spawn('heart', HEART, (petX() - 8 + R(16)) + '%', ((stageH() - pos.fb - P.offsetHeight) / stageH() * 100 + R(10)) + '%', 1000);
 function line(t){ const p = document.createElement('p'); p.textContent = t; act.append(p); return p }
 function btn(label, fn){ const b = document.createElement('button'); b.textContent = label; b.onclick = () => fn(b); act.append(b); return b }
 
@@ -47,7 +47,7 @@ function finish(t, ok){
 const run = {
   feed(t){
     btn('Give apple', b => {
-      b.disabled = true; spawn('food', APPLE, P.style.left || '50%', '0', 950);
+      b.disabled = true; { const f = spawn('food', APPLE, P.style.left || '50%', '0', 950); f.style.setProperty('--fall', (stageH() - pos.fb - .42 * P.offsetHeight - 22) + 'px') }
       setTimeout(() => fx(P, 'eat', 1300), 800);
       setTimeout(() => { heart(); finish(t, true) }, 2200);
     });
@@ -55,7 +55,7 @@ const run = {
   play(t){
     let n = 0; const info = line('Throws: 0/3');
     btn('Throw ball', b => {
-      b.disabled = true; spawn('ball', BALL, null, null, 1150);
+      b.disabled = true; spawn('ball', BALL, null, null, 1150).style.setProperty('--gb', pos.fb + 'px');
       fx(P, 'chase', 1400);
       setTimeout(() => { n++; info.textContent = `Throws: ${n}/3`; heart(); if (n >= 3) finish(t, true); else b.disabled = false }, 1500);
     });
@@ -90,8 +90,9 @@ function openTask(t){ act.replaceChildren(); $('#fx').replaceChildren(); toast('
 // view
 function draw(){
   const n = needs(), age = ageOf(S.xp), st = stageOf(age), sad = n.h < 30 || n.p < 30;
-  P.style.setProperty('--s', [96,120,144,168,168][st] + 'px'); P.classList.toggle('elder', st === 4); P.classList.toggle('sad', sad);
-  if (!P.firstChild || P.dataset.k !== `${S.species}${st}${sad}`) { P.innerHTML = art(S.species, st, sad); P.dataset.k = `${S.species}${st}${sad}` }
+  const fly = placePet(st); P.classList.toggle('elder', st === 4); P.classList.toggle('sad', sad);
+  const key = `${S.species}${st}${sad}${fly}`;
+  if (!P.firstChild || P.dataset.k !== key) { P.innerHTML = art(S.species, st, sad, fly); P.dataset.k = key }
   $('#pname').textContent = S.name; $('#set-name').textContent = S.name;
   $('#s-sp').textContent = SP[S.species].n; $('#s-st').textContent = STAGES[st][1]; $('#s-age').textContent = Math.floor(age); $('#s-xp').textContent = S.xp;
   $('#s-mood').textContent = n.h < 30 ? 'Hungry' : n.p < 30 ? 'Lonely' : (n.h >= 60 && n.p >= 60 ? 'Happy' : 'Okay'); $('#stats').classList.toggle('sad', sad);
@@ -280,17 +281,36 @@ $('#set-reset').onclick = async () => {
   localStorage.removeItem(KEY); location.reload();
 };
 
-// Dragging: the pet slides left and right along the grass.
+// Depth: lower on the grass = closer = bigger, higher = further away = smaller. Only the dragon can leave the grass and fly.
+const BASE = [96, 120, 144, 168, 168];
+const pos = {fb: null};                                   // distance of the pet's feet from the bottom of the scene, in px
+const stageH = () => $('#stage').clientHeight;
+function placePet(st){
+  const H = stageH(), lo = .05 * H, grass = .25 * H, dragon = S.species === 'dragon';
+  if (pos.fb === null) pos.fb = lo + (grass - lo) * .2;
+  pos.fb = Math.max(lo, dragon ? pos.fb : Math.min(pos.fb, grass));
+  const d = Math.min(1, (pos.fb - lo) / (grass - lo)), size = BASE[st] * (1 - .42 * d);
+  if (dragon) pos.fb = Math.min(pos.fb, H - size - 6);
+  const fly = dragon && pos.fb > grass + 2;
+  P.style.setProperty('--s', size + 'px'); P.style.bottom = pos.fb + 'px';
+  P.style.zIndex = fly ? 3 : pos.fb > .22 * H ? 0 : 2;    // behind the tree when far back on the grass
+  P.classList.toggle('fly', fly);
+  const sh = $('#shadow'); sh.hidden = !fly; sh.style.left = P.style.left || '50%'; sh.style.width = size * .6 + 'px';
+  return fly;
+}
 function initDrag(){
   if (initDrag.done) return; initDrag.done = true;
-  let drag = false, off = 0;
+  let drag = false, offX = 0, offY = 0;
   const move = e => {
     const r = $('#stage').getBoundingClientRect(), half = P.offsetWidth / 2 / r.width;
-    P.style.left = Math.min(1 - half, Math.max(half, (e.clientX - off - r.left) / r.width)) * 100 + '%';
+    P.style.left = Math.min(1 - half, Math.max(half, (e.clientX - offX - r.left) / r.width)) * 100 + '%';
+    pos.fb = r.bottom - (e.clientY + offY);
+    const was = P.classList.contains('fly'), st = stageOf(ageOf(S.xp));
+    if (placePet(st) !== was) draw();                     // dragon took off or landed: swap the sprite
   };
   P.addEventListener('pointerdown', e => {
     drag = true; P.setPointerCapture(e.pointerId); P.classList.add('held');
-    off = e.clientX - (P.getBoundingClientRect().left + P.offsetWidth / 2);
+    const b = P.getBoundingClientRect(); offX = e.clientX - (b.left + b.width / 2); offY = b.bottom - e.clientY;
   });
   P.addEventListener('pointermove', e => { if (drag) move(e) });
   const end = () => { drag = false; P.classList.remove('held') };
