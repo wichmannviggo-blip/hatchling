@@ -154,9 +154,12 @@ $('#adminbtn').onclick = async () => {
 // ---- Supabase: accounts, cloud save, leaderboard ----
 // The pet is saved in the browser first, then synced. Offline play keeps working and syncs when you're back online.
 const sb = (window.supabase && typeof SUPABASE_URL === 'string' && SUPABASE_URL.startsWith('http')) ? supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
-let user = null;
+let user = null, username = '', mode = 'in';
+const UKEY = KEY + '-user';
 const toRow = () => ({user_id: user.id, name: S.name, species: S.species, xp: S.xp, state: {hunger: S.hunger, happy: S.happy, t: S.t, cd: S.cd}, updated: S.u});
 const fromRow = r => ({name: r.name, species: r.species, xp: r.xp, ...r.state, u: r.updated});
+const screen = id => ['auth', 'verify', 'uname'].forEach(x => { $('#' + x).hidden = x !== id });
+
 async function push(){
   if (!sb || !user || !S) return;
   try { const {error} = await sb.from('pets').upsert(toRow()); dirty = !!error; if (!error) loadBoard() } catch (e) { dirty = true }
@@ -165,35 +168,85 @@ async function loadBoard(){
   if (!sb) return;
   const {data} = await sb.from('leaderboard').select('*'); if (!data) return;
   const box = $('#lb'); box.replaceChildren();
+  if (!data.length) box.textContent = 'No players yet.';
   data.forEach((r, i) => {
-    const d = document.createElement('div'), a = document.createElement('span'), b = document.createElement('span'); d.className = 'row';
-    a.textContent = `${i + 1}. ${r.name} (${(SP[r.species] || {n: '?'}).n})`; b.textContent = `age ${Math.floor(ageOf(r.xp))} · ${r.xp} XP`;
-    d.append(a, b); box.append(d);
+    const d = document.createElement('div'), l = document.createElement('div'), n = document.createElement('b'), p = document.createElement('small'), x = document.createElement('span');
+    d.className = 'row' + (r.username === username ? ' me' : '');
+    n.textContent = `${i + 1}. ${r.username}`; p.textContent = `${r.name} · ${(SP[r.species] || {n: '?'}).n}`;
+    x.textContent = `age ${Math.floor(ageOf(r.xp))} · ${r.xp} XP`;
+    l.append(n, p); d.append(l, x); box.append(d);
   });
 }
-async function authDo(kind){
-  const email = $('#em').value.trim(), password = $('#pw').value, err = $('#aerr'); err.textContent = '';
-  const {data, error} = kind === 'up' ? await sb.auth.signUp({email, password}) : await sb.auth.signInWithPassword({email, password});
-  if (error) return err.textContent = error.message;
-  if (!data.session) return err.textContent = 'Check your email to confirm, then log in.';
-  enter(data.session.user);
+function showTab(t){
+  $('#petview').hidden = t !== 'pet'; $('#lbbox').hidden = t !== 'board';
+  $('#tab-pet').classList.toggle('on', t === 'pet'); $('#tab-board').classList.toggle('on', t === 'board');
+  if (t === 'board') loadBoard();
+}
+
+function setMode(m){
+  mode = m; const up = m === 'up';
+  $('#m-in').classList.toggle('on', !up); $('#m-up').classList.toggle('on', up);
+  $('#cpw-wrap').hidden = !up; $('#authgo').textContent = up ? 'Create account' : 'Log in';
+  $('#auth-h').textContent = up ? 'Create your account' : 'Welcome back';
+  $('#auth-sub').textContent = up ? 'Sign up to save your pet and join the leaderboard.' : 'Log in to continue with your pet.';
+  $('#pw').autocomplete = up ? 'new-password' : 'current-password'; $('#aerr').textContent = '';
+}
+async function authDo(){
+  const up = mode === 'up', email = $('#em').value.trim().toLowerCase(), pw = $('#pw').value, err = $('#aerr'); err.textContent = '';
+  if (!/^\S+@\S+\.\S+$/.test(email)) return err.textContent = 'Enter a valid email address.';
+  if (up && pw.length < 8) return err.textContent = 'Use at least 8 characters for your password.';
+  if (up && pw !== $('#pw2').value) return err.textContent = 'The passwords don’t match.';
+  const btn = $('#authgo'); btn.disabled = true;
+  try {
+    if (up) {
+      const {data, error} = await sb.auth.signUp({email, password: pw, options: {emailRedirectTo: location.origin + location.pathname}});
+      // An existing email comes back as an error, or as a user with no identities. Either way it can't be registered twice.
+      if ((error && /already|registered/i.test(error.message)) || (data && data.user && data.user.identities && !data.user.identities.length)) { setMode('in'); return $('#aerr').textContent = 'That email already has an account. Log in instead.' }
+      if (error) return err.textContent = error.message;
+      if (!data.session) { $('#vmail').textContent = email; return screen('verify') }
+      return enter(data.session.user);
+    }
+    const {data, error} = await sb.auth.signInWithPassword({email, password: pw});
+    if (error) return err.textContent = /not confirmed/i.test(error.message) ? 'Verify your email first. Check your inbox for the link.' : /invalid/i.test(error.message) ? 'Wrong email or password.' : error.message;
+    enter(data.session.user);
+  } finally { btn.disabled = false }
 }
 async function enter(u){
-  user = u; $('#auth').hidden = true; $('#lbbox').hidden = false; $('#logout').hidden = false;
+  user = u;
+  const {data, error} = await sb.from('profiles').select('username').maybeSingle();
+  if (!error && !data) return screen('uname');                   // verified, but no username yet
+  username = data ? data.username : (localStorage.getItem(UKEY) || '');
+  if (data) localStorage.setItem(UKEY, username);
+  start();
+}
+async function saveUsername(){
+  const v = $('#un').value, err = $('#uerr'); err.textContent = '';
+  if (!/^[A-Za-z0-9]{3,16}$/.test(v)) return err.textContent = 'Use 3–16 letters or numbers, no spaces or symbols.';
+  const {error} = await sb.from('profiles').insert({user_id: user.id, username: v});
+  if (error) return err.textContent = error.code === '23505' ? 'That username is taken.' : error.message;
+  username = v; localStorage.setItem(UKEY, v); start();
+}
+async function start(){
+  screen(''); $('#acct').hidden = false; $('#tabs').hidden = false; $('#who').textContent = username || 'player';
   let remote = null;
   try { const {data} = await sb.from('pets').select('*').maybeSingle(); if (data) remote = fromRow(data) } catch (e) {}
   if (remote && (!S || remote.u >= (S.u || 0))) { S = remote; localStorage.setItem(KEY, JSON.stringify(S)) } else if (S) push();
   S ? showGame() : showEgg(); loadBoard();
 }
+
 window.addEventListener('online', push);
 setInterval(() => { if (dirty) push(); if (user) loadBoard() }, 30000);
-
-$('#login').onclick = () => authDo('in'); $('#signup').onclick = () => authDo('up');
-$('#guest').onclick = () => { $('#auth').hidden = true; S ? showGame() : showEgg() };
-$('#logout').onclick = async () => { await sb.auth.signOut(); localStorage.removeItem(KEY); location.reload() };
-$('#lbbox').hidden = true;
+$('#m-in').onclick = () => setMode('in'); $('#m-up').onclick = () => setMode('up'); $('#authgo').onclick = authDo;
+['em', 'pw', 'pw2'].forEach(id => { $('#' + id).onkeydown = e => { if (e.key === 'Enter') authDo() } });
+$('#guest').onclick = () => { screen(''); S ? showGame() : showEgg() };
+$('#vback').onclick = () => { setMode('in'); screen('auth') };
+$('#un').oninput = e => { e.target.value = e.target.value.replace(/[^A-Za-z0-9]/g, '') };
+$('#ugo').onclick = saveUsername;
+$('#tab-pet').onclick = () => showTab('pet'); $('#tab-board').onclick = () => showTab('board');
+$('#logout').onclick = async () => { await sb.auth.signOut(); localStorage.removeItem(KEY); localStorage.removeItem(UKEY); location.reload() };
+$('#authlogo').innerHTML = EGG; setMode('in');
 (async () => {
   if (!sb) return S ? showGame() : showEgg();            // no server configured: local only
   const {data} = await sb.auth.getSession();            // works offline too (session is cached)
-  if (data.session) enter(data.session.user); else $('#auth').hidden = false;
+  if (data.session) enter(data.session.user); else screen('auth');
 })();
