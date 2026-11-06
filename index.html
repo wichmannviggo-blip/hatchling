@@ -61,14 +61,20 @@
     <section id="game" hidden>
       <nav id="tabs" hidden>
         <button id="tab-pet" class="on">Pet</button>
-        <button id="tab-board">Leaderboard</button>
+        <button id="tab-board" hidden>Leaderboard</button>
+        <button id="tab-settings">Settings</button>
       </nav>
       <div id="petview">
         <div id="stage">
           <div id="pet"></div>
           <div id="fx"></div>
         </div>
-        <h2 id="pname"></h2>
+        <div id="namerow"><h2 id="pname"></h2><button id="rename" class="icon" aria-label="Rename pet"></button></div>
+        <div id="nameedit" hidden>
+          <input id="ne" maxlength="16" aria-label="Pet name">
+          <button id="nesave">Save</button>
+          <button id="necancel" class="ghost">Cancel</button>
+        </div>
         <div id="stats">
           <div><span>Animal</span><b id="s-sp"></b></div>
           <div><span>Stage</span><b id="s-st"></b></div>
@@ -88,6 +94,13 @@
       <div id="lbbox" hidden>
         <h3>Global leaderboard</h3>
         <div id="lb"></div>
+      </div>
+      <div id="settings" hidden>
+        <h3>Settings</h3>
+        <div class="set"><div><b>Animations</b><small>Turn movement and effects on or off</small></div><button id="set-anim"></button></div>
+        <div class="set"><div><b>Pet name</b><small id="set-name"></small></div><button id="set-rename">Rename</button></div>
+        <div class="set" id="set-acct" hidden><div><b>Account</b><small id="set-user"></small></div><button id="set-logout">Log out</button></div>
+        <div class="set"><div><b>Start over</b><small>Delete this pet and hatch a new egg</small></div><button id="set-reset" class="danger">Reset</button></div>
       </div>
     </section>
   </main>
