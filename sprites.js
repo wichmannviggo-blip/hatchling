@@ -25,11 +25,12 @@ const HEAD = {
 const BODY  = ['.oobbbbb','.obbllll','.obbllll','.obbllll','.obbbbbb','.ooooooo'];
 const BODYD = ['.oobbbbb','aobbllll','aobbllll','aobbllll','.obbbbbb','.ooooooo'];
 
-function art(sp, st, sad){
+function art(sp, st, sad, fly){
   const c = SP[sp];
   const pal = {o:INK, k:INK, m:INK, w:'#fff', p:'#e8758a', y:'#f5d36b', a:c.d, b:c.b, d:c.d, l:c.l};
   let extra = '';
   if (st === 4) extra += '<rect x="6" y="10" width="4" height="2" fill="#f4f4f4"/>';
+  if (fly && sp === 'dragon') extra += wing(WU, 6, 'w1', c.d) + wing(WD, 9, 'w2', c.d);
   if (sad) extra += '<rect x="4" y="8" width="1" height="2" fill="#6ec6ff"/>';
   return px(mir([...HEAD[sp], ...(sp === 'dragon' ? BODYD : BODY)]), pal, extra);
 }
@@ -51,3 +52,11 @@ const SUN = (() => {
   return px(rows, {y:'#ffe066', o:'#f2a81d', r:'#ffd84a'});
 })();
 const TREE = px(mir(['.....oo','...oogg','..oghhg','.oghhgg','.oggggg','oggghgg','ogggddd','.ogggdd','..ooddd','....ott','....ott','....ott','...ottt']), {o:INK, g:'#3f9b4a', h:'#62bf62', d:'#2f7d3a', t:'#8a5a32'});
+
+// wings for a flying dragon: two frames that swap, drawn outside the 16x16 body on both sides
+const WU = ['x...', 'xx..', 'xxx.', 'xxxx', '.xxx', '...x'], WD = ['...x', '.xxx', 'xxxx', 'xxx.', 'xx..', 'x...'];
+function wing(rows, y0, cls, col){
+  let r = '';
+  rows.forEach((row, j) => [...row].forEach((ch, i) => { if (ch === 'x') { const x = -4 + i; r += `<rect x="${x}" y="${y0 + j}" width="1" height="1"/><rect x="${15 - x}" y="${y0 + j}" width="1" height="1"/>` } }));
+  return `<g class="${cls}" fill="${col}">${r}</g>`;
+}
