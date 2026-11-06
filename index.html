@@ -66,10 +66,12 @@
       </nav>
       <div id="petview">
         <div id="stage">
+          <div id="sun"></div>
+          <div id="tree"></div>
           <div id="pet"></div>
           <div id="fx"></div>
         </div>
-        <div id="namerow"><h2 id="pname"></h2><button id="rename" class="icon" aria-label="Rename pet"></button></div>
+        <div id="namerow"><h2 id="pname" tabindex="0" role="button" title="Click to rename"></h2><span id="pencil" aria-hidden="true"></span></div>
         <div id="nameedit" hidden>
           <input id="ne" maxlength="16" aria-label="Pet name">
           <button id="nesave">Save</button>
@@ -83,10 +85,11 @@
           <div><span>Mood</span><b id="s-mood"></b></div>
         </div>
         <div class="bars">
-          <label>Hunger<div class="bar"><i id="bh"></i></div></label>
+          <label id="lh" hidden>Hunger<div class="bar"><i id="bh"></i></div></label>
           <label>Happiness<div class="bar"><i id="bp"></i></div></label>
           <label id="xl">Growth<div class="bar"><i id="bx"></i></div></label>
         </div>
+        <p id="need"></p>
         <div id="tasks"></div>
         <div id="act"></div>
         <p id="toast" role="status"></p>
@@ -98,7 +101,8 @@
       <div id="settings" hidden>
         <h3>Settings</h3>
         <div class="set"><div><b>Animations</b><small>Turn movement and effects on or off</small></div><button id="set-anim"></button></div>
-        <div class="set"><div><b>Pet name</b><small id="set-name"></small></div><button id="set-rename">Rename</button></div>
+        <div class="set"><div><b>Notifications</b><small>Tell me when my pet needs something (while the page is open)</small></div><button id="set-notify"></button></div>
+        <div class="set"><div><b>Pet name</b><small id="set-name"></small><small>You can rename once per hour</small></div><button id="set-rename">Rename</button></div>
         <div class="set" id="set-acct" hidden><div><b>Account</b><small id="set-user"></small></div><button id="set-logout">Log out</button></div>
         <div class="set"><div><b>Start over</b><small>Delete this pet and hatch a new egg</small></div><button id="set-reset" class="danger">Reset</button></div>
       </div>
