@@ -10,14 +10,42 @@
 <body>
   <main>
     <h1>Hatchling</h1>
+    <div id="acct" hidden><span>Signed in as <b id="who"></b></span><button id="logout">Log out</button></div>
 
     <section id="auth" hidden>
-      <p>Log in to keep your pet on every device and join the global leaderboard.</p>
-      <input id="em" type="email" placeholder="Email" autocomplete="email" aria-label="Email">
-      <input id="pw" type="password" placeholder="Password (6+ characters)" autocomplete="current-password" aria-label="Password">
+      <div id="authlogo"></div>
+      <h2 id="auth-h">Welcome back</h2>
+      <p class="sub" id="auth-sub">Log in to continue with your pet.</p>
+      <div class="seg">
+        <button id="m-in" class="on">Log in</button>
+        <button id="m-up">Sign up</button>
+      </div>
+      <label for="em">Email</label>
+      <input id="em" type="email" autocomplete="email" placeholder="you@example.com">
+      <label for="pw">Password</label>
+      <input id="pw" type="password" autocomplete="current-password" placeholder="At least 8 characters">
+      <div id="cpw-wrap" hidden>
+        <label for="pw2">Confirm password</label>
+        <input id="pw2" type="password" autocomplete="new-password">
+      </div>
       <p id="aerr" role="alert"></p>
-      <div class="opts"><button id="login">Log in</button><button id="signup">Sign up</button></div>
-      <button id="guest">Play without an account</button>
+      <button id="authgo" class="primary">Log in</button>
+      <button id="guest" class="link">Continue without an account</button>
+    </section>
+
+    <section id="verify" hidden>
+      <h2>Check your email</h2>
+      <p class="sub">We sent a verification link to <b id="vmail"></b>. Open it to finish creating your account.</p>
+      <button id="vback" class="primary">Back to log in</button>
+    </section>
+
+    <section id="uname" hidden>
+      <h2>Choose a username</h2>
+      <p class="sub">3–16 characters, letters and numbers only. It appears on the leaderboard and can’t be changed later.</p>
+      <label for="un">Username</label>
+      <input id="un" maxlength="16" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="e.g. DragonFan7">
+      <p id="uerr" role="alert"></p>
+      <button id="ugo" class="primary">Save username</button>
     </section>
 
     <section id="egg" hidden>
@@ -31,30 +59,35 @@
     </section>
 
     <section id="game" hidden>
-      <div id="stage">
-        <div id="pet"></div>
-        <div id="fx"></div>
+      <nav id="tabs" hidden>
+        <button id="tab-pet" class="on">Pet</button>
+        <button id="tab-board">Leaderboard</button>
+      </nav>
+      <div id="petview">
+        <div id="stage">
+          <div id="pet"></div>
+          <div id="fx"></div>
+        </div>
+        <h2 id="pname"></h2>
+        <div id="stats">
+          <div><span>Animal</span><b id="s-sp"></b></div>
+          <div><span>Stage</span><b id="s-st"></b></div>
+          <div><span>Age</span><b id="s-age"></b></div>
+          <div><span>XP</span><b id="s-xp"></b></div>
+          <div><span>Mood</span><b id="s-mood"></b></div>
+        </div>
+        <div class="bars">
+          <label>Hunger<div class="bar"><i id="bh"></i></div></label>
+          <label>Happiness<div class="bar"><i id="bp"></i></div></label>
+          <label id="xl">Growth<div class="bar"><i id="bx"></i></div></label>
+        </div>
+        <div id="tasks"></div>
+        <div id="act"></div>
+        <p id="toast" role="status"></p>
       </div>
-      <h2 id="pname"></h2>
-      <div id="stats">
-        <div><span>Animal</span><b id="s-sp"></b></div>
-        <div><span>Stage</span><b id="s-st"></b></div>
-        <div><span>Age</span><b id="s-age"></b></div>
-        <div><span>XP</span><b id="s-xp"></b></div>
-        <div><span>Mood</span><b id="s-mood"></b></div>
-      </div>
-      <div class="bars">
-        <label>Hunger<div class="bar"><i id="bh"></i></div></label>
-        <label>Happiness<div class="bar"><i id="bp"></i></div></label>
-        <label id="xl">Growth<div class="bar"><i id="bx"></i></div></label>
-      </div>
-      <div id="tasks"></div>
-      <div id="act"></div>
-      <p id="toast" role="status"></p>
-      <div id="lbbox">
-        <h3>Leaderboard</h3>
+      <div id="lbbox" hidden>
+        <h3>Global leaderboard</h3>
         <div id="lb"></div>
-        <button id="logout" hidden>Log out</button>
       </div>
     </section>
   </main>
