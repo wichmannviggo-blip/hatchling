@@ -23,7 +23,8 @@ function spawn(cls, html, x, y, ms){
   if (x != null) { e.style.left = x; e.style.top = y }
   $('#fx').append(e); if (ms) setTimeout(() => e.remove(), ms); return e;
 }
-const heart = () => spawn('heart', HEART, (35 + R(30)) + '%', (25 + R(20)) + '%', 1000);
+const petX = () => parseFloat(P.style.left) || 50;
+const heart = () => spawn('heart', HEART, (petX() - 8 + R(16)) + '%', (25 + R(20)) + '%', 1000);
 function line(t){ const p = document.createElement('p'); p.textContent = t; act.append(p); return p }
 function btn(label, fn){ const b = document.createElement('button'); b.textContent = label; b.onclick = () => fn(b); act.append(b); return b }
 
@@ -44,7 +45,7 @@ function finish(t, ok){
 const run = {
   feed(t){
     btn('Give apple', b => {
-      b.disabled = true; spawn('food', APPLE, null, null, 950);
+      b.disabled = true; spawn('food', APPLE, P.style.left || '50%', '0', 950);
       setTimeout(() => fx(P, 'eat', 1300), 800);
       setTimeout(() => { heart(); finish(t, true) }, 2200);
     });
@@ -89,7 +90,7 @@ function draw(){
   const n = needs(), age = ageOf(S.xp), st = stageOf(age), sad = n.h < 30 || n.p < 30;
   P.style.setProperty('--s', [96,120,144,168,168][st] + 'px'); P.classList.toggle('elder', st === 4); P.classList.toggle('sad', sad);
   if (!P.firstChild || P.dataset.k !== `${S.species}${st}${sad}`) { P.innerHTML = art(S.species, st, sad); P.dataset.k = `${S.species}${st}${sad}` }
-  $('#pname').textContent = S.name;
+  $('#pname').textContent = S.name; $('#set-name').textContent = S.name;
   $('#s-sp').textContent = SP[S.species].n; $('#s-st').textContent = STAGES[st][1]; $('#s-age').textContent = Math.floor(age); $('#s-xp').textContent = S.xp;
   $('#s-mood').textContent = sad ? 'Sad' : (n.h >= 60 && n.p >= 60 ? 'Happy' : 'Okay'); $('#stats').classList.toggle('sad', sad);
   $('#bx').style.width = (age >= 100 ? 100 : (age % 1) * 100) + '%'; tick();
@@ -100,7 +101,7 @@ function tick(){
     if (r > 0) { b.disabled = true; const s = Math.ceil(r / 1e3); b.textContent = `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}` } else { b.disabled = false; b.textContent = t.n } });
 }
 function showGame(){
-  $('#egg').hidden = true; $('#game').hidden = false;
+  $('#egg').hidden = true; $('#game').hidden = false; $('#tabs').hidden = false; initDrag();
   TASKS.forEach(t => { const b = document.createElement('button'); b.id = 't-' + t.id; b.onclick = () => openTask(t); $('#tasks').append(b) });
   draw(); setInterval(() => { tick(); draw() }, 1000);
 }
@@ -178,8 +179,8 @@ async function loadBoard(){
   });
 }
 function showTab(t){
-  $('#petview').hidden = t !== 'pet'; $('#lbbox').hidden = t !== 'board';
-  $('#tab-pet').classList.toggle('on', t === 'pet'); $('#tab-board').classList.toggle('on', t === 'board');
+  $('#petview').hidden = t !== 'pet'; $('#lbbox').hidden = t !== 'board'; $('#settings').hidden = t !== 'settings';
+  ['pet', 'board', 'settings'].forEach(k => $('#tab-' + k).classList.toggle('on', k === t));
   if (t === 'board') loadBoard();
 }
 
@@ -227,7 +228,7 @@ async function saveUsername(){
   username = v; localStorage.setItem(UKEY, v); start();
 }
 async function start(){
-  screen(''); $('#acct').hidden = false; $('#tabs').hidden = false; $('#who').textContent = username || 'player';
+  screen(''); $('#acct').hidden = false; $('#tab-board').hidden = false; $('#set-acct').hidden = false; $('#set-user').textContent = username || 'player'; $('#who').textContent = username || 'player';
   let remote = null;
   try { const {data} = await sb.from('pets').select('*').maybeSingle(); if (data) remote = fromRow(data) } catch (e) {}
   if (remote && (!S || remote.u >= (S.u || 0))) { S = remote; localStorage.setItem(KEY, JSON.stringify(S)) } else if (S) push();
@@ -244,6 +245,49 @@ $('#un').oninput = e => { e.target.value = e.target.value.replace(/[^A-Za-z0-9]/
 $('#ugo').onclick = saveUsername;
 $('#tab-pet').onclick = () => showTab('pet'); $('#tab-board').onclick = () => showTab('board');
 $('#logout').onclick = async () => { await sb.auth.signOut(); localStorage.removeItem(KEY); localStorage.removeItem(UKEY); location.reload() };
+// ---- pet name, settings, dragging ----
+const CFGKEY = KEY + '-cfg';
+const cfg = Object.assign({anim: true}, JSON.parse(localStorage.getItem(CFGKEY) || '{}'));
+function applyCfg(){ document.body.classList.toggle('no-anim', !cfg.anim); $('#set-anim').textContent = cfg.anim ? 'On' : 'Off'; localStorage.setItem(CFGKEY, JSON.stringify(cfg)) }
+$('#set-anim').onclick = () => { cfg.anim = !cfg.anim; applyCfg() }; applyCfg();
+
+$('#rename').innerHTML = PENCIL;
+function openRename(){ $('#namerow').hidden = true; $('#nameedit').hidden = false; const i = $('#ne'); i.value = S.name; i.focus(); i.select() }
+function closeRename(){ $('#nameedit').hidden = true; $('#namerow').hidden = false }
+function saveRename(){ const v = $('#ne').value.trim(); if (!v) return $('#ne').focus(); S.name = v.slice(0, 16); save(); closeRename(); draw() }
+$('#rename').onclick = openRename; $('#nesave').onclick = saveRename; $('#necancel').onclick = closeRename;
+$('#ne').onkeydown = e => { if (e.key === 'Enter') saveRename(); if (e.key === 'Escape') closeRename() };
+
+$('#tab-settings').onclick = () => showTab('settings');
+$('#set-rename').onclick = () => { showTab('pet'); openRename() };
+$('#set-logout').onclick = $('#logout').onclick;
+$('#set-reset').onclick = async () => {
+  if (!confirm('Delete this pet and hatch a new egg? This can’t be undone.')) return;
+  if (sb && user) { const {error} = await sb.from('pets').delete().eq('user_id', user.id); if (error) return alert('Couldn’t reset. Check your connection and try again.') }
+  localStorage.removeItem(KEY); location.reload();
+};
+
+// Dragging: the pet slides left and right along the grass, held inside a bubble until it's released.
+function initDrag(){
+  if (initDrag.done) return; initDrag.done = true;
+  let drag = false, off = 0, bub = null;
+  const move = e => {
+    const r = $('#stage').getBoundingClientRect(), half = P.offsetWidth / 2 / r.width;
+    P.style.left = Math.min(1 - half, Math.max(half, (e.clientX - off - r.left) / r.width)) * 100 + '%';
+  };
+  P.addEventListener('pointerdown', e => {
+    drag = true; P.setPointerCapture(e.pointerId); P.classList.add('held');
+    off = e.clientX - (P.getBoundingClientRect().left + P.offsetWidth / 2);
+    bub = document.createElement('span'); bub.className = 'bub'; bub.innerHTML = BUBBLE; P.append(bub);
+  });
+  P.addEventListener('pointermove', e => { if (drag) move(e) });
+  const end = () => {
+    if (!drag) return; drag = false; P.classList.remove('held');
+    const b = bub; b.classList.add('pop'); setTimeout(() => b.remove(), 200);
+  };
+  P.addEventListener('pointerup', end); P.addEventListener('pointercancel', end);
+}
+
 $('#authlogo').innerHTML = EGG; setMode('in');
 (async () => {
   if (!sb) return S ? showGame() : showEgg();            // no server configured: local only
