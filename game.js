@@ -6,9 +6,10 @@ const TASKS = [
   {id:'feed', n:'Feed', xp:6, hunger:40}, {id:'play', n:'Play', xp:10, happy:35},
   {id:'pet', n:'Pet', xp:4, happy:15}, {id:'clean', n:'Clean', xp:8, happy:20}, {id:'quiz', n:'Quiz', xp:15, happy:20}
 ];
+let dirty = false;
 let S = JSON.parse(localStorage.getItem(KEY) || 'null');
 const P = $('#pet'), act = $('#act');
-const save = () => localStorage.setItem(KEY, JSON.stringify(S));
+const save = () => { S.u = Date.now(); localStorage.setItem(KEY, JSON.stringify(S)); dirty = true; push() };
 
 function ageOf(xp){ let r = xp; for (const [lo,hi,c] of BANDS){ if (r >= c) r -= c; else return lo + (hi-lo)*r/c } return 100 }
 function stageOf(a){ let i = 0; STAGES.forEach((s,j) => { if (a >= s[0]) i = j }); return i }
@@ -149,4 +150,50 @@ $('#adminbtn').onclick = async () => {
   adminPanel();
 };
 
-S ? showGame() : showEgg();
+
+// ---- Supabase: accounts, cloud save, leaderboard ----
+// The pet is saved in the browser first, then synced. Offline play keeps working and syncs when you're back online.
+const sb = (window.supabase && typeof SUPABASE_URL === 'string' && SUPABASE_URL.startsWith('http')) ? supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
+let user = null;
+const toRow = () => ({user_id: user.id, name: S.name, species: S.species, xp: S.xp, state: {hunger: S.hunger, happy: S.happy, t: S.t, cd: S.cd}, updated: S.u});
+const fromRow = r => ({name: r.name, species: r.species, xp: r.xp, ...r.state, u: r.updated});
+async function push(){
+  if (!sb || !user || !S) return;
+  try { const {error} = await sb.from('pets').upsert(toRow()); dirty = !!error; if (!error) loadBoard() } catch (e) { dirty = true }
+}
+async function loadBoard(){
+  if (!sb) return;
+  const {data} = await sb.from('leaderboard').select('*'); if (!data) return;
+  const box = $('#lb'); box.replaceChildren();
+  data.forEach((r, i) => {
+    const d = document.createElement('div'), a = document.createElement('span'), b = document.createElement('span'); d.className = 'row';
+    a.textContent = `${i + 1}. ${r.name} (${(SP[r.species] || {n: '?'}).n})`; b.textContent = `age ${Math.floor(ageOf(r.xp))} · ${r.xp} XP`;
+    d.append(a, b); box.append(d);
+  });
+}
+async function authDo(kind){
+  const email = $('#em').value.trim(), password = $('#pw').value, err = $('#aerr'); err.textContent = '';
+  const {data, error} = kind === 'up' ? await sb.auth.signUp({email, password}) : await sb.auth.signInWithPassword({email, password});
+  if (error) return err.textContent = error.message;
+  if (!data.session) return err.textContent = 'Check your email to confirm, then log in.';
+  enter(data.session.user);
+}
+async function enter(u){
+  user = u; $('#auth').hidden = true; $('#lbbox').hidden = false; $('#logout').hidden = false;
+  let remote = null;
+  try { const {data} = await sb.from('pets').select('*').maybeSingle(); if (data) remote = fromRow(data) } catch (e) {}
+  if (remote && (!S || remote.u >= (S.u || 0))) { S = remote; localStorage.setItem(KEY, JSON.stringify(S)) } else if (S) push();
+  S ? showGame() : showEgg(); loadBoard();
+}
+window.addEventListener('online', push);
+setInterval(() => { if (dirty) push(); if (user) loadBoard() }, 30000);
+
+$('#login').onclick = () => authDo('in'); $('#signup').onclick = () => authDo('up');
+$('#guest').onclick = () => { $('#auth').hidden = true; S ? showGame() : showEgg() };
+$('#logout').onclick = async () => { await sb.auth.signOut(); localStorage.removeItem(KEY); location.reload() };
+$('#lbbox').hidden = true;
+(async () => {
+  if (!sb) return S ? showGame() : showEgg();            // no server configured: local only
+  const {data} = await sb.auth.getSession();            // works offline too (session is cached)
+  if (data.session) enter(data.session.user); else $('#auth').hidden = false;
+})();
