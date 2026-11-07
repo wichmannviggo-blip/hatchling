@@ -91,8 +91,8 @@ function openTask(t){ act.replaceChildren(); $('#fx').replaceChildren(); toast('
 function draw(){
   const n = needs(), age = ageOf(S.xp), st = stageOf(age), sad = n.h < 30 || n.p < 30;
   const fly = placePet(st); P.classList.toggle('elder', st === 4); P.classList.toggle('sad', sad);
-  const key = `${S.species}${st}${sad}${fly}`;
-  if (!P.firstChild || P.dataset.k !== key) { P.innerHTML = art(S.species, st, sad, fly); P.dataset.k = key }
+  const key = `${S.species}${S.color}${st}${sad}${fly}`;
+  if (!P.firstChild || P.dataset.k !== key) { P.innerHTML = art(S.species, st, sad, fly, S.color); P.dataset.k = key }
   $('#pname').textContent = S.name; $('#set-name').textContent = S.name;
   $('#s-sp').textContent = SP[S.species].n; $('#s-st').textContent = STAGES[st][1]; $('#s-age').textContent = Math.floor(age); $('#s-xp').textContent = S.xp;
   $('#s-mood').textContent = n.h < 30 ? 'Hungry' : n.p < 30 ? 'Lonely' : (n.h >= 60 && n.p >= 60 ? 'Happy' : 'Okay'); $('#stats').classList.toggle('sad', sad);
@@ -106,20 +106,21 @@ function tick(){
 function showGame(){
   $('#egg').hidden = true; $('#game').hidden = false; $('#tabs').hidden = false; initDrag();
   if (!S.next) schedule();
+  if (S.color === undefined) { S.color = R(SP[S.species].colors.length); save() }
   draw(); setInterval(() => { tick(); draw() }, 1000);
 }
 function showEgg(){
-  $('#egg').hidden = false; $('#eggart').innerHTML = EGG; let sp;
+  $('#egg').hidden = false; $('#eggart').innerHTML = EGG; let sp, col;
   $('#hatchbtn').onclick = () => {
     $('#hatchbtn').disabled = true; fx($('#eggart'), 'shake', 700);
     setTimeout(() => {
-    const r = Math.random(); sp = r < .05 ? 'dragon' : r < .2 ? 'frog' : r < .6 ? 'dog' : 'cat';
-    $('#eggart').innerHTML = art(sp, 0, false); $('#hatchbtn').hidden = true; $('#namebox').hidden = false;
-    $('#got').textContent = `It’s a ${SP[sp].n}!${sp === 'dragon' ? ' A legendary Dragon.' : sp === 'frog' ? ' A rare Frog.' : ''}`; $('#nm').focus();
+    sp = rollSpecies(); col = R(SP[sp].colors.length);
+    $('#eggart').innerHTML = art(sp, 0, false, false, col); $('#hatchbtn').hidden = true; $('#namebox').hidden = false;
+    $('#got').textContent = `It’s a ${SP[sp].colors[col].n.toLowerCase()} ${SP[sp].n}!${TIER[sp] ? ` A ${TIER[sp]} find.` : ''}`; $('#nm').focus();
     }, 700);
   };
   $('#go').onclick = () => { const nm = $('#nm').value.trim(); if (!nm) return $('#nm').focus();
-    S = {name:nm, species:sp, xp:0, hunger:80, happy:80, t:Date.now(), cd:{}, req:null, renamed:0}; schedule(); save(); showGame() };
+    S = {name:nm, species:sp, color:col, xp:0, hunger:80, happy:80, t:Date.now(), cd:{}, req:null, renamed:0}; schedule(); save(); showGame() };
 }
 
 // Admin test tools. The code is checked against a hash, but this is client-side only: it hides nothing from anyone who reads the page source.
@@ -128,8 +129,9 @@ let adminOn = false;
 async function sha(x){ const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(x)); return [...new Uint8Array(b)].map(v => v.toString(16).padStart(2, '0')).join('') }
 function xpForAge(a){ let x = 0; for (const [lo,hi,c] of BANDS){ if (a >= hi) x += c; else { x += c * (a - lo) / (hi - lo); break } } return Math.round(x) }
 function adminSet(fn){
-  if (!S) { S = {name:'Test', species:'cat', xp:0, hunger:100, happy:100, t:Date.now(), cd:{}, req:null, next:Date.now() + 3e5, renamed:0}; save(); showGame() }
+  if (!S) { S = {name:'Test', species:'cat', color:0, xp:0, hunger:100, happy:100, t:Date.now(), cd:{}, req:null, next:Date.now() + 3e5, renamed:0}; save(); showGame() }
   fn(); save(); P.dataset.k = ''; draw();
+  if ($('#admin')) { $('#admin').remove(); adminPanel() }
 }
 function adminPanel(){
   if ($('#admin')) return $('#admin').remove();
@@ -139,7 +141,8 @@ function adminPanel(){
     const w = document.createElement('div'); w.className = 'opts wrap';
     items.forEach(([n, f]) => { const b = document.createElement('button'); b.textContent = n; b.onclick = f; w.append(b) }); d.append(w);
   };
-  grp('Animal', Object.keys(SP).map(k => [SP[k].n, () => adminSet(() => { S.species = k })]));
+  grp('Animal', Object.keys(SP).map(k => [SP[k].n, () => adminSet(() => { S.species = k; S.color = 0 })]));
+  grp('Color', SP[S ? S.species : 'cat'].colors.map((c, i) => [c.n, () => adminSet(() => { S.color = i })]));
   grp('Stage', STAGES.map(s => [s[1], () => adminSet(() => { S.xp = xpForAge(s[0]) })]));
   grp('Needs', [['Fill', () => adminSet(() => { S.hunger = S.happy = 100; S.t = Date.now() })], ['Sad', () => adminSet(() => { S.hunger = S.happy = 10; S.t = Date.now() })]]);
   grp('Request', [...TASKS.map(t => [t.n, () => adminSet(() => makeRequest(t.id))]), ['Clear', () => adminSet(() => { S.req = null; schedule() })]]);
@@ -316,6 +319,11 @@ function initDrag(){
   const end = () => { drag = false; P.classList.remove('held') };
   P.addEventListener('pointerup', end); P.addEventListener('pointercancel', end);
 }
+
+// ---- hatching odds ----
+const RARITY = [['dog', 18], ['cat', 18], ['bunny', 14], ['hamster', 14], ['fox', 9], ['owl', 8], ['frog', 7], ['penguin', 7], ['dragon', 5]];   // out of 100
+const TIER = {fox:'uncommon', owl:'uncommon', frog:'rare', penguin:'rare', dragon:'legendary'};
+function rollSpecies(){ let r = R(100); for (const [k, w] of RARITY) { if ((r -= w) < 0) return k } return 'dog' }
 
 // ---- the pet asks for things on its own ----
 const MSG = {feed:'is hungry!', play:'wants to play!', pet:'feels lonely. Give it some love.', clean:'got dirty!', quiz:'is bored and wants a challenge!'};
