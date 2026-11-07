@@ -19,7 +19,7 @@ function raster(shapes, W = N, H = N, ox = 0, oy = 0){
   }
   return g;
 }
-function finish(g){   // darken the bottom and right rim of the main colour, then add the outline
+function outlined(g){   // darken the bottom and right rim of the main colour, then add the outline
   const H = g.length, W = g[0].length, at = (x, y) => (g[y] && g[y][x]) || '', o = g.map(r => r.slice());
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
     if (g[y][x] === 'b' && (!at(x, y + 1) || !at(x, y + 2) || !at(x + 1, y))) o[y][x] = 'd';
@@ -97,24 +97,24 @@ function shapesFor(sp, st, sad){
 }
 function wings(pal){   // big flapping wings for the flying dragon; two frames that swap
   const W = 13, H = 28, ox = -12, oy = 3;
-  const mk = shapes => { const g = finish(raster(shapes, W, H, ox, oy)); return rects(g, pal, ox, oy) + rects(g.map(r => r.slice().reverse()), pal, N - ox - W, oy) };
+  const mk = shapes => { const g = outlined(raster(shapes, W, H, ox, oy)); return rects(g, pal, ox, oy) + rects(g.map(r => r.slice().reverse()), pal, N - ox - W, oy) };
   return `<g class="w1">${mk([['t',-.5,13,-.5,23,-11,5,'d'], ['t',-.5,17,-.5,25,-11,15,'d']])}</g><g class="w2">${mk([['t',-.5,17,-.5,26,-11,30,'d'], ['t',-.5,14,-.5,22,-11,19,'d']])}</g>`;
 }
 function art(sp, st, sad, fly, ci = 0){
   const pal = palette(sp, ci);
-  return svg(finish(raster(shapesFor(sp, st, sad))), pal, fly && sp === 'dragon' ? wings(pal) : '');
+  return svg(outlined(raster(shapesFor(sp, st, sad))), pal, fly && sp === 'dragon' ? wings(pal) : '');
 }
 
 // ---- everything else in the scene, drawn with the same engine
-const EGG = svg(finish(raster([['e',16,19,11.4,11.2,'b'], ['e',16,12.5,9,10.5,'b'], ['e',11.5,16.5,2.6,2.2,'a'], ['e',21,22.5,3.2,2.6,'g'], ['e',14.5,26,2,1.4,'v'], ['e',20,11,1.5,1.5,'a'], ['e',11,10,1.3,2.2,'w']])),
+const EGG = svg(outlined(raster([['e',16,19,11.4,11.2,'b'], ['e',16,12.5,9,10.5,'b'], ['e',11.5,16.5,2.6,2.2,'a'], ['e',21,22.5,3.2,2.6,'g'], ['e',14.5,26,2,1.4,'v'], ['e',20,11,1.5,1.5,'a'], ['e',11,10,1.3,2.2,'w']])),
   {o:INK, b:'#f4ead2', d:'#d8c79f', a:'#c98f5a', g:'#8fc7a8', v:'#b9a3e0', w:'#fff'});
-const APPLE = svg(finish(raster([['r',7,1.5,9,5,'t'], ['e',11,3.2,2.4,1.2,'g'], ['e',5.6,9,4.4,5.2,'b'], ['e',10.4,9,4.4,5.2,'b'], ['e',8,10,6,5,'b'], ['e',5,7.4,1,1.4,'w']], 16, 16)),
+const APPLE = svg(outlined(raster([['r',7,1.5,9,5,'t'], ['e',11,3.2,2.4,1.2,'g'], ['e',5.6,9,4.4,5.2,'b'], ['e',10.4,9,4.4,5.2,'b'], ['e',8,10,6,5,'b'], ['e',5,7.4,1,1.4,'w']], 16, 16)),
   {o:INK, b:'#e5484d', d:'#b8343a', t:'#6b4423', g:'#4aa05a', w:'#ffb3b3'});
-const BALL = svg(finish(raster([['e',8,8,6.6,6.6,'b'], ['e',8,12,5,1.6,'d'], ['e',5.5,5,1.6,1.6,'w']], 16, 16)), {o:INK, b:'#e5484d', d:'#b8343a', w:'#ffd0d0'});
-const HEART = svg(finish(raster([['e',5.2,5.3,3.7,3.5,'b'], ['e',10.8,5.3,3.7,3.5,'b'], ['t',1.6,6.3,14.4,6.3,8,12.6,'b'], ['e',4,4,1,1,'w']], 16, 14)), {o:INK, b:'#e5484d', d:'#b8343a', w:'#ffb3b3'});
-const HAND = svg(finish(raster([['r',6,3,27,13,'b'], ['e',8,15,2,5,'b'], ['e',13.4,16.2,2,5.6,'b'], ['e',18.8,16.2,2,5.6,'b'], ['e',24.2,15,2,5,'b'], ['e',28,9,2.6,3.8,'b']], 32, 24)), {o:INK, b:'#f2c9a0', d:'#d9a77c'});
+const BALL = svg(outlined(raster([['e',8,8,6.6,6.6,'b'], ['e',8,12,5,1.6,'d'], ['e',5.5,5,1.6,1.6,'w']], 16, 16)), {o:INK, b:'#e5484d', d:'#b8343a', w:'#ffd0d0'});
+const HEART = svg(outlined(raster([['e',5.2,5.3,3.7,3.5,'b'], ['e',10.8,5.3,3.7,3.5,'b'], ['t',1.6,6.3,14.4,6.3,8,12.6,'b'], ['e',4,4,1,1,'w']], 16, 14)), {o:INK, b:'#e5484d', d:'#b8343a', w:'#ffb3b3'});
+const HAND = svg(outlined(raster([['r',6,3,27,13,'b'], ['e',8,15,2,5,'b'], ['e',13.4,16.2,2,5.6,'b'], ['e',18.8,16.2,2,5.6,'b'], ['e',24.2,15,2,5,'b'], ['e',28,9,2.6,3.8,'b']], 32, 24)), {o:INK, b:'#f2c9a0', d:'#d9a77c'});
 const SUN = svg(raster([['r',15,1,17,6,'y'], ['r',15,26,17,31,'y'], ['r',1,15,6,17,'y'], ['r',26,15,31,17,'y'], ['e',6.5,6.5,1.4,1.4,'y'], ['e',25.5,6.5,1.4,1.4,'y'], ['e',6.5,25.5,1.4,1.4,'y'], ['e',25.5,25.5,1.4,1.4,'y'],
   ['e',16,16,8.4,8.4,'q'], ['e',16,16,7,7,'y'], ['e',13.6,13.4,2.2,1.6,'w']]), {y:'#ffe066', q:'#f2a81d', w:'#fff6b0'});
-const TREE = svg(finish(raster([['r',12,15,16,25,'t'], ['r',10.5,23,17.5,25,'t'], ['e',14,9,10,7.5,'b'], ['e',7.5,13,6,5,'b'], ['e',20.5,13,6.5,5,'b'], ['e',14,6,6.5,4.5,'b'],
+const TREE = svg(outlined(raster([['r',12,15,16,25,'t'], ['r',10.5,23,17.5,25,'t'], ['e',14,9,10,7.5,'b'], ['e',7.5,13,6,5,'b'], ['e',20.5,13,6.5,5,'b'], ['e',14,6,6.5,4.5,'b'],
   ['e',9.5,7.5,3.2,2.2,'l'], ['e',17,5,2.6,1.7,'l'], ['e',5.5,12,2,1.4,'l'], ['e',22,11.5,1.8,1.3,'l']], 28, 26)), {o:INK, b:'#3f9b4a', d:'#2f7d3a', l:'#7fd070', t:'#8a5a32'});
 const PENCIL = svg(['......oo', '.....oeo', '....oyo.', '...oyo..', '..oyo...', '.oppo...', '.opo....', '.oo.....'].map(r => [...r].map(c => c === '.' ? '' : c)), {o:INK, e:'#e5758a', y:'#f2b134', p:'#f2c9a0'});
