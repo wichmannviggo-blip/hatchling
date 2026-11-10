@@ -144,3 +144,6 @@ input{font:inherit;width:100%;padding:10px;margin:8px 0 12px;border:3px solid va
 .w2{animation:wing2 .4s steps(1) infinite}
 @keyframes wing1{50%{opacity:0}}
 @keyframes wing2{0%{opacity:0}50%{opacity:1}}
+
+#tasks .req.urgent{background:#e5484d;color:#fff;animation:reqin .4s steps(4),urgent .8s steps(2) .4s infinite}
+@keyframes urgent{50%{transform:scale(1.03)}}
