@@ -13,7 +13,17 @@ const save = () => { S.u = Date.now(); localStorage.setItem(KEY, JSON.stringify(
 
 function ageOf(xp){ let r = xp; for (const [lo,hi,c] of BANDS){ if (r >= c) r -= c; else return lo + (hi-lo)*r/c } return 100 }
 function stageOf(a){ let i = 0; STAGES.forEach((s,j) => { if (a >= s[0]) i = j }); return i }
-function needs(){ const d = (Date.now() - S.t) / 36e5; return {h: Math.max(0, S.hunger - d*100/6), p: Math.max(0, S.happy - d*100/8)} }
+// Four needs, each with its own meter that drains in real time. A request appears when a meter reaches the ask line.
+const RATE = {feed: 1.83, social: 2.2, clean: 1.22, mind: .92};   // % per minute: reaches the ask line after ~30, 25, 45 and 60 minutes
+const NEED = {feed:'feed', play:'social', pet:'social', clean:'clean', quiz:'mind'};
+const ASK = 45, URGENT = 25;
+function needs(){
+  const d = (Date.now() - S.t) / 6e4, n = {};
+  for (const k in RATE) n[k] = Math.max(0, S.m[k] - d * RATE[k] * S.rate[k]);
+  n.h = n.feed; n.p = (n.feed + n.social + n.clean + n.mind) / 4;   // hunger bar, overall happiness
+  return n;
+}
+function commit(){ const n = needs(); for (const k in RATE) S.m[k] = n[k]; S.t = Date.now() }
 
 
 // helpers
@@ -32,15 +42,15 @@ let toastT;
 function toast(t){ const e = $('#toast'); e.textContent = t; clearTimeout(toastT); if (t) toastT = setTimeout(() => { e.textContent = '' }, 5000) }
 
 function finish(t, ok){
-  const n = needs(); S.hunger = n.h; S.happy = n.p; S.t = Date.now();
-  const mine = S.req && S.req.id === t.id, late = mine && Date.now() - S.req.at > 30 * 60e3;
-  const g = ok ? Math.round(t.xp * (late ? .5 : 1)) : 0;
+  commit();
+  const k = NEED[t.id], mine = S.req && S.req.id === t.id, wait = mine ? Date.now() - S.req.at : 0;
+  const mult = !mine ? 1 : wait < 5 * 60e3 ? 1.25 : wait > 30 * 60e3 ? .5 : 1;
+  const g = ok ? Math.round(t.xp * mult) : 0;
   S.xp += g;
-  if (t.hunger && ok) S.hunger = Math.min(100, S.hunger + t.hunger);
-  if (t.happy && ok) S.happy = Math.min(100, S.happy + t.happy);
-  if (mine && ok) { S.req = null; schedule() }
+  if (ok) { S.m[k] = Math.min(100, S.m[k] + 60); S.rate[k] = .75 + Math.random() * .5 }   // new pace each time, so it isn't predictable
+  if (mine && ok) { S.req = null; S.gap = Date.now() + 15e3 }                              // short breather before the next request
   save(); act.replaceChildren(); draw();
-  toast(ok ? `+${g} XP${late && g ? ' (half, it waited a long time)' : ''}` : 'Not quite. Try again.');
+  toast(ok ? `+${g} XP${mult === 1.25 ? ' (quick bonus)' : mult === .5 ? ' (half, it waited a long time)' : ''}` : 'Not quite. Try again.');
 }
 
 // tasks
@@ -80,7 +90,7 @@ const run = {
     }
   },
   quiz(t){
-    const x = 2 + R(8), y = 2 + R(8), a = x * y, o = [a, a + x, a - y].sort(() => Math.random() - .5);
+    const hi = [4, 6, 8, 10, 12][stageOf(ageOf(S.xp))], x = 2 + R(hi - 1), y = 2 + R(hi - 1), a = x * y, o = [a, a + x, a - y].sort(() => Math.random() - .5);
     line(`What is ${x} × ${y}?`); const w = document.createElement('div'); w.className = 'opts';
     o.forEach(v => { const b = document.createElement('button'); b.textContent = v; b.onclick = () => finish(t, v === a); w.append(b) }); act.append(w);
   }
@@ -89,23 +99,26 @@ function openTask(t){ act.replaceChildren(); $('#fx').replaceChildren(); toast('
 
 // view
 function draw(){
-  const n = needs(), age = ageOf(S.xp), st = stageOf(age), sad = n.h < 30 || n.p < 30;
+  const n = needs(), age = ageOf(S.xp), st = stageOf(age), sad = Math.min(n.feed, n.social, n.clean, n.mind) < 30;
   const fly = placePet(st); P.classList.toggle('elder', st === 4); P.classList.toggle('sad', sad);
   const key = `${S.species}${S.color}${st}${sad}${fly}`;
   if (!P.firstChild || P.dataset.k !== key) { P.innerHTML = art(S.species, st, sad, fly, S.color); P.dataset.k = key }
   $('#pname').textContent = S.name; $('#set-name').textContent = S.name;
   $('#s-sp').textContent = SP[S.species].n; $('#s-st').textContent = STAGES[st][1]; $('#s-age').textContent = Math.floor(age); $('#s-xp').textContent = S.xp;
-  $('#s-mood').textContent = n.h < 30 ? 'Hungry' : n.p < 30 ? 'Lonely' : (n.h >= 60 && n.p >= 60 ? 'Happy' : 'Okay'); $('#stats').classList.toggle('sad', sad);
+  $('#s-mood').textContent = n.feed < 30 ? 'Hungry' : n.social < 30 ? 'Lonely' : n.clean < 30 ? 'Dirty' : n.mind < 30 ? 'Bored' : (n.p >= 65 ? 'Happy' : 'Okay'); $('#stats').classList.toggle('sad', sad);
   $('#bx').style.width = (age >= 100 ? 100 : (age % 1) * 100) + '%'; renderReq(); tick();
 }
 function tick(){
   if (!S) return; const n = needs();
   $('#bh').style.width = n.h + '%'; $('#bp').style.width = n.p + '%'; $('#lh').hidden = n.h >= 35;   // hunger only shows when really hungry
-  if (!S.req && Date.now() >= S.next) makeRequest(pick(n));
+  if (!S.req && Date.now() >= (S.gap || 0)) {
+    let k = null; for (const x in RATE) if (n[x] < ASK && (!k || n[x] < n[k])) k = x;                   // the most urgent need below the ask line
+    if (k) ask(k === 'feed' ? 'feed' : k === 'clean' ? 'clean' : k === 'mind' ? 'quiz' : n.social < URGENT ? 'pet' : 'play');
+  }
 }
 function showGame(){
   $('#egg').hidden = true; $('#game').hidden = false; $('#tabs').hidden = false; initDrag();
-  if (!S.next) schedule();
+  if (!S.m) { S.m = {feed: S.hunger ?? 80, social: S.happy ?? 80, clean: 80, mind: 80}; S.rate = {feed: 1, social: 1, clean: 1, mind: 1}; S.t = S.t || Date.now(); save() }
   if (S.color === undefined) { S.color = R(SP[S.species].colors.length); save() }
   draw(); setInterval(() => { tick(); draw() }, 1000);
 }
@@ -120,7 +133,7 @@ function showEgg(){
     }, 700);
   };
   $('#go').onclick = () => { const nm = $('#nm').value.trim(); if (!nm) return $('#nm').focus();
-    S = {name:nm, species:sp, color:col, xp:0, hunger:80, happy:80, t:Date.now(), cd:{}, req:null, renamed:0}; schedule(); save(); showGame() };
+    S = {name:nm, species:sp, color:col, xp:0, t:Date.now(), m:{feed:62, social:56, clean:90, mind:90}, rate:{feed:1, social:1, clean:1, mind:1}, req:null, gap:0, renamed:0}; save(); showGame() };
 }
 
 // Admin test tools. The code is checked against a hash, but this is client-side only: it hides nothing from anyone who reads the page source.
@@ -129,7 +142,7 @@ let adminOn = false;
 async function sha(x){ const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(x)); return [...new Uint8Array(b)].map(v => v.toString(16).padStart(2, '0')).join('') }
 function xpForAge(a){ let x = 0; for (const [lo,hi,c] of BANDS){ if (a >= hi) x += c; else { x += c * (a - lo) / (hi - lo); break } } return Math.round(x) }
 function adminSet(fn){
-  if (!S) { S = {name:'Test', species:'cat', color:0, xp:0, hunger:100, happy:100, t:Date.now(), cd:{}, req:null, next:Date.now() + 3e5, renamed:0}; save(); showGame() }
+  if (!S) { S = {name:'Test', species:'cat', color:0, xp:0, t:Date.now(), m:{feed:100, social:100, clean:100, mind:100}, rate:{feed:1, social:1, clean:1, mind:1}, req:null, gap:0, renamed:0}; save(); showGame() }
   fn(); save(); P.dataset.k = ''; draw();
   if ($('#admin')) { $('#admin').remove(); adminPanel() }
 }
@@ -144,10 +157,16 @@ function adminPanel(){
   grp('Animal', Object.keys(SP).map(k => [SP[k].n, () => adminSet(() => { S.species = k; S.color = 0 })]));
   grp('Color', SP[S ? S.species : 'cat'].colors.map((c, i) => [c.n, () => adminSet(() => { S.color = i })]));
   grp('Stage', STAGES.map(s => [s[1], () => adminSet(() => { S.xp = xpForAge(s[0]) })]));
-  grp('Needs', [['Fill', () => adminSet(() => { S.hunger = S.happy = 100; S.t = Date.now() })], ['Sad', () => adminSet(() => { S.hunger = S.happy = 10; S.t = Date.now() })]]);
-  grp('Request', [...TASKS.map(t => [t.n, () => adminSet(() => makeRequest(t.id))]), ['Clear', () => adminSet(() => { S.req = null; schedule() })]]);
+  grp('Needs', [['Fill', () => adminSet(() => { for (const k in RATE) S.m[k] = 100; S.t = Date.now() })], ['Sad', () => adminSet(() => { for (const k in RATE) S.m[k] = 10; S.t = Date.now() })]]);
+  grp('Request', [...TASKS.map(t => [t.n, () => adminSet(() => { commit(); S.m[NEED[t.id]] = Math.min(S.m[NEED[t.id]], 20); ask(t.id) })]), ['Clear', () => adminSet(() => { S.req = null; S.gap = 0 })]]);
   grp('Pet', [['New egg', () => { localStorage.removeItem(KEY); location.reload() }]]);
   document.body.append(d);
+}
+const OWNER_EMAIL_HASH = '3250a962aa84e6cf56c02c24c30c7f51a85cefe40c3925be3aa0647d15002212';
+async function ownerCheck(){   // only the owner's profile gets the admin button (cosmetic: the code prompt is still required)
+  let ok = (username || '').toLowerCase() === 'viko';
+  try { ok = ok || !!(user && user.email && await sha(user.email.toLowerCase()) === OWNER_EMAIL_HASH) } catch (e) {}
+  $('#adminbtn').hidden = !ok;
 }
 $('#adminbtn').onclick = async () => {
   if (!adminOn) {
@@ -189,6 +208,7 @@ function showTab(t){
   $('#petview').hidden = t !== 'pet'; $('#lbbox').hidden = t !== 'board'; $('#settings').hidden = t !== 'settings';
   ['pet', 'board', 'settings'].forEach(k => $('#tab-' + k).classList.toggle('on', k === t));
   if (t === 'board') loadBoard();
+  if (t === 'pet' && S) draw();                                   // re-place the pet now that the stage is visible again
 }
 
 function setMode(m){
@@ -235,7 +255,7 @@ async function saveUsername(){
   username = v; localStorage.setItem(UKEY, v); start();
 }
 async function start(){
-  screen(''); $('#acct').hidden = false; $('#tab-board').hidden = false; $('#set-acct').hidden = false; $('#set-user').textContent = username || 'player'; $('#who').textContent = username || 'player';
+  screen(''); $('#acct').hidden = false; $('#tab-board').hidden = false; $('#set-acct').hidden = false; $('#set-user').textContent = username || 'player'; ownerCheck(); $('#who').textContent = username || 'player';
   let remote = null;
   try { const {data} = await sb.from('pets').select('*').maybeSingle(); if (data) remote = fromRow(data) } catch (e) {}
   if (remote && (!S || remote.u >= (S.u || 0))) { S = remote; localStorage.setItem(KEY, JSON.stringify(S)) } else if (S) push();
@@ -290,6 +310,7 @@ const pos = {fb: null};                                   // distance of the pet
 const stageH = () => $('#stage').clientHeight;
 function placePet(st){
   const H = stageH(), lo = .05 * H, grass = .25 * H, dragon = S.species === 'dragon';
+  if (!H) return P.classList.contains('fly');            // stage is hidden (another tab is open): leave the position alone
   if (pos.fb === null) pos.fb = lo + (grass - lo) * .2;
   pos.fb = Math.max(lo, dragon ? pos.fb : Math.min(pos.fb, grass));
   const d = Math.min(1, (pos.fb - lo) / (grass - lo)), size = BASE[st] * (1 - .42 * d);
@@ -326,32 +347,22 @@ const TIER = {fox:'uncommon', owl:'uncommon', frog:'rare', penguin:'rare', drago
 function rollSpecies(){ let r = R(100); for (const [k, w] of RARITY) { if ((r -= w) < 0) return k } return 'dog' }
 
 // ---- the pet asks for things on its own ----
-const MSG = {feed:'is hungry!', play:'wants to play!', pet:'feels lonely. Give it some love.', clean:'got dirty!', quiz:'is bored and wants a challenge!'};
-const nextIn = () => (300 + R(301)) * 1000;                       // 5 to 10 minutes
-const schedule = () => { S.next = Date.now() + nextIn() };
-function pick(n){
-  if (n.h < 30) return 'feed';                                    // really hungry: it needs food
-  if (n.p < 30) return Math.random() < .5 ? 'pet' : 'play';       // lonely: it needs company
-  let r = R(9); for (const [id, k] of [['feed', 3], ['pet', 2], ['play', 2], ['clean', 1], ['quiz', 1]]) { if ((r -= k) < 0) return id }
-}
-function makeRequest(id){
-  const n = needs(); S.hunger = n.h; S.happy = n.p; S.t = Date.now();
-  if (id === 'feed') S.hunger = Math.min(S.hunger, 25);
-  if (id === 'pet' || id === 'play') S.happy = Math.min(S.happy, 25);
-  if (id === 'clean') S.happy = Math.min(S.happy, 45);
+const MSG = {feed:'is getting hungry.', play:'wants to play.', pet:'wants some attention.', clean:'could use a wash.', quiz:'is bored and wants a challenge.'};
+const URG = {feed:'is really hungry!', play:'is bored and restless!', pet:'feels very lonely!', clean:'is filthy!', quiz:'is going stir-crazy!'};
+function ask(id){
   S.req = {id, at: Date.now()}; save(); draw();
   if (cfg.notify && 'Notification' in window && Notification.permission === 'granted' && document.hidden) {
     try { new Notification('Hatchling', {body: `${S.name} ${MSG[id]}`}) } catch (e) {}
   }
 }
 function renderReq(){
-  const key = (S.req ? S.req.id : '') + '|' + S.name, w = $('#tasks');
+  const low = S.req && needs()[NEED[S.req.id]] < URGENT, key = (S.req ? S.req.id : '') + '|' + S.name + '|' + !!low, w = $('#tasks');
   if (w.dataset.k === key) return; w.dataset.k = key; w.replaceChildren();
   document.title = S.req ? '(1) Hatchling' : 'Hatchling';
   if (!S.req) { $('#need').textContent = `${S.name} is fine for now.`; return }
   const t = TASKS.find(x => x.id === S.req.id), b = document.createElement('button');
-  b.className = 'req'; b.textContent = t.n; b.onclick = () => openTask(t); w.append(b);
-  $('#need').textContent = `${S.name} ${MSG[S.req.id]}`;
+  b.className = 'req' + (low ? ' urgent' : ''); b.textContent = t.n; b.onclick = () => openTask(t); w.append(b);
+  $('#need').textContent = `${S.name} ${low ? URG[S.req.id] : MSG[S.req.id]}`;
 }
 $('#set-notify').onclick = async () => {
   if (cfg.notify) cfg.notify = false;
