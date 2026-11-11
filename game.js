@@ -11,6 +11,8 @@ let S = JSON.parse(localStorage.getItem(KEY) || 'null');
 const P = $('#pet'), act = $('#act');
 const save = () => { S.u = Date.now(); localStorage.setItem(KEY, JSON.stringify(S)); dirty = true; push() };
 
+const careOf = () => S.cn ? S.cs / S.cn : .5;                                    // 0..1: how quickly its requests were answered
+const lookOf = st => st >= 3 && (S.cn || 0) >= 8 ? (careOf() >= .75 ? 'polished' : careOf() <= .4 ? 'scruffy' : '') : '';
 function ageOf(xp){ let r = xp; for (const [lo,hi,c] of BANDS){ if (r >= c) r -= c; else return lo + (hi-lo)*r/c } return 100 }
 function stageOf(a){ let i = 0; STAGES.forEach((s,j) => { if (a >= s[0]) i = j }); return i }
 // Four needs, each with its own meter that drains in real time. A request appears when a meter reaches the ask line.
@@ -48,7 +50,7 @@ function finish(t, ok){
   const g = ok ? Math.round(t.xp * mult) : 0;
   S.xp += g;
   if (ok) { S.m[k] = Math.min(100, S.m[k] + 60); S.rate[k] = .75 + Math.random() * .5 }   // new pace each time, so it isn't predictable
-  if (mine && ok) { S.req = null; S.gap = Date.now() + 15e3 }                              // short breather before the next request
+  if (mine && ok) { S.cs = (S.cs || 0) + (wait < 5 * 60e3 ? 1 : wait > 30 * 60e3 ? .2 : .6); S.cn = (S.cn || 0) + 1; S.req = null; S.gap = Date.now() + 15e3 }                              // short breather before the next request
   save(); act.replaceChildren(); draw();
   toast(ok ? `+${g} XP${mult === 1.25 ? ' (quick bonus)' : mult === .5 ? ' (half, it waited a long time)' : ''}` : 'Not quite. Try again.');
 }
@@ -101,8 +103,11 @@ function openTask(t){ act.replaceChildren(); $('#fx').replaceChildren(); toast('
 function draw(){
   const n = needs(), age = ageOf(S.xp), st = stageOf(age), sad = Math.min(n.feed, n.social, n.clean, n.mind) < 30;
   const fly = placePet(st); P.classList.toggle('elder', st === 4); P.classList.toggle('sad', sad);
-  const key = `${S.species}${S.color}${st}${sad}${fly}`;
-  if (!P.firstChild || P.dataset.k !== key) { P.innerHTML = art(S.species, st, sad, fly, S.color); P.dataset.k = key }
+  const sleep = World.sleeping(), look = lookOf(st);
+  P.classList.toggle('shiny', S.color === 'shiny'); P.classList.toggle('sleep', sleep);
+  const key = `${S.species}${S.color}${st}${sad}${fly}${look}${sleep}`;
+  if (!P.firstChild || P.dataset.k !== key) { P.innerHTML = art(S.species, st, sad, fly, S.color, look, sleep); P.dataset.k = key }
+  $('#set-care').textContent = `${Math.round(careOf() * 100)}%${look ? ' · ' + look : ''}`; $('#set-finds').textContent = World.findsText();
   $('#pname').textContent = S.name; $('#set-name').textContent = S.name;
   $('#s-sp').textContent = SP[S.species].n; $('#s-st').textContent = STAGES[st][1]; $('#s-age').textContent = Math.floor(age); $('#s-xp').textContent = S.xp;
   $('#s-mood').textContent = n.feed < 30 ? 'Hungry' : n.social < 30 ? 'Lonely' : n.clean < 30 ? 'Dirty' : n.mind < 30 ? 'Bored' : (n.p >= 65 ? 'Happy' : 'Okay'); $('#stats').classList.toggle('sad', sad);
@@ -111,6 +116,8 @@ function draw(){
 function tick(){
   if (!S) return; const n = needs();
   $('#bh').style.width = n.h + '%'; $('#bp').style.width = n.p + '%'; $('#lh').hidden = n.h >= 35;   // hunger only shows when really hungry
+  if (S.req && !S.req.neg && Date.now() - S.req.at > 60 * 60e3) { S.req.neg = true; S.cn = (S.cn || 0) + 1 }   // ignored for an hour: counts against its care
+  World.tick();
   if (!S.req && Date.now() >= (S.gap || 0)) {
     let k = null; for (const x in RATE) if (n[x] < ASK && (!k || n[x] < n[k])) k = x;                   // the most urgent need below the ask line
     if (k) ask(k === 'feed' ? 'feed' : k === 'clean' ? 'clean' : k === 'mind' ? 'quiz' : n.social < URGENT ? 'pet' : 'play');
@@ -118,6 +125,7 @@ function tick(){
 }
 function showGame(){
   $('#egg').hidden = true; $('#game').hidden = false; $('#tabs').hidden = false; initDrag();
+  World.init();
   if (!S.m) { S.m = {feed: S.hunger ?? 80, social: S.happy ?? 80, clean: 80, mind: 80}; S.rate = {feed: 1, social: 1, clean: 1, mind: 1}; S.t = S.t || Date.now(); save() }
   if (S.color === undefined) { S.color = R(SP[S.species].colors.length); save() }
   draw(); setInterval(() => { tick(); draw() }, 1000);
@@ -127,9 +135,9 @@ function showEgg(){
   $('#hatchbtn').onclick = () => {
     $('#hatchbtn').disabled = true; fx($('#eggart'), 'shake', 700);
     setTimeout(() => {
-    sp = rollSpecies(); col = R(SP[sp].colors.length);
+    sp = rollSpecies(); col = R(100) === 0 ? 'shiny' : R(SP[sp].colors.length);   // 1 in 100 is shiny
     $('#eggart').innerHTML = art(sp, 0, false, false, col); $('#hatchbtn').hidden = true; $('#namebox').hidden = false;
-    $('#got').textContent = `It’s a ${SP[sp].colors[col].n.toLowerCase()} ${SP[sp].n}!${TIER[sp] ? ` A ${TIER[sp]} find.` : ''}`; $('#nm').focus();
+    $('#got').textContent = col === 'shiny' ? `It’s a SHINY ${SP[sp].n}! One in a hundred!` : `It’s a ${SP[sp].colors[col].n.toLowerCase()} ${SP[sp].n}!${TIER[sp] ? ` A ${TIER[sp]} find.` : ''}`; $('#nm').focus();
     }, 700);
   };
   $('#go').onclick = () => { const nm = $('#nm').value.trim(); if (!nm) return $('#nm').focus();
@@ -155,7 +163,7 @@ function adminPanel(){
     items.forEach(([n, f]) => { const b = document.createElement('button'); b.textContent = n; b.onclick = f; w.append(b) }); d.append(w);
   };
   grp('Animal', Object.keys(SP).map(k => [SP[k].n, () => adminSet(() => { S.species = k; S.color = 0 })]));
-  grp('Color', SP[S ? S.species : 'cat'].colors.map((c, i) => [c.n, () => adminSet(() => { S.color = i })]));
+  grp('Color', [...SP[S ? S.species : 'cat'].colors.map((c, i) => [c.n, () => adminSet(() => { S.color = i })]), ['Shiny', () => adminSet(() => { S.color = 'shiny' })]]);
   grp('Stage', STAGES.map(s => [s[1], () => adminSet(() => { S.xp = xpForAge(s[0]) })]));
   grp('Needs', [['Fill', () => adminSet(() => { for (const k in RATE) S.m[k] = 100; S.t = Date.now() })], ['Sad', () => adminSet(() => { for (const k in RATE) S.m[k] = 10; S.t = Date.now() })]]);
   grp('Request', [...TASKS.map(t => [t.n, () => adminSet(() => { commit(); S.m[NEED[t.id]] = Math.min(S.m[NEED[t.id]], 20); ask(t.id) })]), ['Clear', () => adminSet(() => { S.req = null; S.gap = 0 })]]);
@@ -199,15 +207,38 @@ async function loadBoard(){
   data.forEach((r, i) => {
     const d = document.createElement('div'), l = document.createElement('div'), n = document.createElement('b'), p = document.createElement('small'), x = document.createElement('span');
     d.className = 'row' + (r.username === username ? ' me' : '');
+    if (r.username !== username) { d.classList.add('link'); d.tabIndex = 0; d.onclick = () => openVisit(r); d.onkeydown = e => { if (e.key === 'Enter') openVisit(r) } }
     n.textContent = `${i + 1}. ${r.username}`; p.textContent = `${r.name} · ${(SP[r.species] || {n: '?'}).n}`;
     x.textContent = `age ${Math.floor(ageOf(r.xp))} · ${r.xp} XP`;
     l.append(n, p); d.append(l, x); box.append(d);
   });
 }
+// ---- visiting a friend's pet ----
+const gcolor = c => c === 'shiny' ? 'shiny' : (parseInt(c, 10) || 0);
+function openVisit(r){
+  $('#lb').hidden = true; $('#visit').hidden = false; $('#vmsg').textContent = '';
+  const age = ageOf(+r.xp || 0), sc = $('#vscene');
+  sc.innerHTML = art(SP[r.species] ? r.species : 'dog', stageOf(age), false, false, gcolor(r.color)); sc.style.background = $('#stage').style.background;
+  $('#vname').textContent = r.name; $('#vinfo').textContent = `${r.username}’s ${(SP[r.species] || {n: 'pet'}).n} · age ${Math.floor(age)}`;
+  $('#vwave').onclick = () => sendGift(r, 'wave'); $('#vtreat').onclick = () => sendGift(r, 'treat');
+}
+function closeVisit(){ $('#visit').hidden = true; $('#lb').hidden = false }
+async function sendGift(r, kind){
+  const m = $('#vmsg'); m.textContent = '';
+  const {error} = await sb.rpc('send_gift', {to_name: r.username, gift: kind});
+  m.textContent = error ? (/already/i.test(error.message) ? 'You already visited them today. Come back tomorrow.' : 'Couldn’t send that right now.') : kind === 'wave' ? `You waved at ${r.name}!` : `You left ${r.name} a treat!`;
+}
+async function claimGifts(){   // visitors' waves (+3 XP) and treats (+8 XP)
+  if (!sb || !user || !S) return;
+  const {data} = await sb.from('gifts').select('*').eq('claimed', false); if (!data || !data.length) return;
+  const {error} = await sb.from('gifts').update({claimed: true}).in('id', data.map(g => g.id)); if (error) return;
+  const xp = data.reduce((a, g) => a + (g.kind === 'treat' ? 8 : 3), 0), who = [...new Set(data.map(g => g.from_name))];
+  S.xp += xp; save(); draw(); toast(`${who.slice(0, 2).join(' and ')}${who.length > 2 ? ' and others' : ''} visited ${S.name}! +${xp} XP`);
+}
 function showTab(t){
   $('#petview').hidden = t !== 'pet'; $('#lbbox').hidden = t !== 'board'; $('#settings').hidden = t !== 'settings';
   ['pet', 'board', 'settings'].forEach(k => $('#tab-' + k).classList.toggle('on', k === t));
-  if (t === 'board') loadBoard();
+  if (t === 'board') { closeVisit(); loadBoard() }
   if (t === 'pet' && S) draw();                                   // re-place the pet now that the stage is visible again
 }
 
@@ -259,23 +290,23 @@ async function start(){
   let remote = null;
   try { const {data} = await sb.from('pets').select('*').maybeSingle(); if (data) remote = fromRow(data) } catch (e) {}
   if (remote && (!S || remote.u >= (S.u || 0))) { S = remote; localStorage.setItem(KEY, JSON.stringify(S)) } else if (S) push();
-  S ? showGame() : showEgg(); loadBoard();
+  S ? showGame() : showEgg(); loadBoard(); claimGifts();
 }
 
 window.addEventListener('online', push);
-setInterval(() => { if (dirty) push(); if (user) loadBoard() }, 30000);
+setInterval(() => { if (dirty) push(); if (user) { loadBoard(); claimGifts() } }, 30000);
 $('#m-in').onclick = () => setMode('in'); $('#m-up').onclick = () => setMode('up'); $('#authgo').onclick = authDo;
 ['em', 'pw', 'pw2'].forEach(id => { $('#' + id).onkeydown = e => { if (e.key === 'Enter') authDo() } });
 $('#guest').onclick = () => { screen(''); S ? showGame() : showEgg() };
 $('#vback').onclick = () => { setMode('in'); screen('auth') };
 $('#un').oninput = e => { e.target.value = e.target.value.replace(/[^A-Za-z0-9]/g, '') };
 $('#ugo').onclick = saveUsername;
-$('#tab-pet').onclick = () => showTab('pet'); $('#tab-board').onclick = () => showTab('board');
+$('#vclose').onclick = closeVisit; $('#tab-pet').onclick = () => showTab('pet'); $('#tab-board').onclick = () => showTab('board');
 $('#logout').onclick = async () => { await sb.auth.signOut(); localStorage.removeItem(KEY); localStorage.removeItem(UKEY); location.reload() };
 // ---- pet name, settings, dragging ----
 const CFGKEY = KEY + '-cfg';
-const cfg = Object.assign({anim: true, notify: false}, JSON.parse(localStorage.getItem(CFGKEY) || '{}'));
-function applyCfg(){ document.body.classList.toggle('no-anim', !cfg.anim); $('#set-anim').textContent = cfg.anim ? 'On' : 'Off'; $('#set-notify').textContent = cfg.notify ? 'On' : 'Off'; localStorage.setItem(CFGKEY, JSON.stringify(cfg)) }
+const cfg = Object.assign({anim: true, notify: false, weather: false}, JSON.parse(localStorage.getItem(CFGKEY) || '{}'));
+function applyCfg(){ document.body.classList.toggle('no-anim', !cfg.anim); $('#set-anim').textContent = cfg.anim ? 'On' : 'Off'; $('#set-notify').textContent = cfg.notify ? 'On' : 'Off'; $('#set-weather').textContent = cfg.weather ? 'On' : 'Off'; localStorage.setItem(CFGKEY, JSON.stringify(cfg)) }
 $('#set-anim').onclick = () => { cfg.anim = !cfg.anim; applyCfg() }; applyCfg();
 
 $('#pencil').innerHTML = PENCIL;
@@ -295,7 +326,7 @@ $('#pname').onkeydown = e => { if (e.key === 'Enter') openRename() };
 $('#nesave').onclick = saveRename; $('#necancel').onclick = closeRename;
 $('#ne').onkeydown = e => { if (e.key === 'Enter') saveRename(); if (e.key === 'Escape') closeRename() };
 
-$('#tab-settings').onclick = () => showTab('settings');
+$('#tab-settings').onclick = () => showTab('settings'); $('#set-weather').onclick = () => World.toggleWeather();
 $('#set-rename').onclick = () => { showTab('pet'); openRename() };
 $('#set-logout').onclick = $('#logout').onclick;
 $('#set-reset').onclick = async () => {
@@ -312,9 +343,11 @@ function placePet(st){
   const H = stageH(), lo = .05 * H, grass = .25 * H, dragon = S.species === 'dragon';
   if (!H) return P.classList.contains('fly');            // stage is hidden (another tab is open): leave the position alone
   if (pos.fb === null) pos.fb = lo + (grass - lo) * .2;
-  pos.fb = Math.max(lo, dragon ? pos.fb : Math.min(pos.fb, grass));
+  const free = dragon || World.perched();
+  if (World.perched()) { P.style.setProperty('--tr', '1200ms'); P.style.left = '19%'; pos.fb = .33 * H }          // asleep on a branch of the tree
+  pos.fb = Math.max(lo, free ? pos.fb : Math.min(pos.fb, grass));
   const d = Math.min(1, (pos.fb - lo) / (grass - lo)), size = BASE[st] * (1 - .42 * d);
-  if (dragon) pos.fb = Math.min(pos.fb, H - size - 6);
+  if (free) pos.fb = Math.min(pos.fb, H - size - 6);
   const fly = dragon && pos.fb > grass + 2;
   P.style.setProperty('--s', size + 'px'); P.style.bottom = pos.fb + 'px';
   P.style.zIndex = fly ? 3 : pos.fb > .22 * H ? 0 : 2;    // behind the tree when far back on the grass
@@ -333,7 +366,7 @@ function initDrag(){
     if (placePet(st) !== was) draw();                     // dragon took off or landed: swap the sprite
   };
   P.addEventListener('pointerdown', e => {
-    drag = true; P.setPointerCapture(e.pointerId); P.classList.add('held');
+    World.cancel(); drag = true; P.setPointerCapture(e.pointerId); P.classList.add('held');
     const b = P.getBoundingClientRect(); offX = e.clientX - (b.left + b.width / 2); offY = b.bottom - e.clientY;
   });
   P.addEventListener('pointermove', e => { if (drag) move(e) });
