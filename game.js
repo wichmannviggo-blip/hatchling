@@ -44,7 +44,7 @@ let toastT;
 function toast(t){ const e = $('#toast'); e.textContent = t; clearTimeout(toastT); if (t) toastT = setTimeout(() => { e.textContent = '' }, 5000) }
 
 function finish(t, ok){
-  commit();
+  working = false; commit();
   const k = NEED[t.id], mine = S.req && S.req.id === t.id, wait = mine ? Date.now() - S.req.at : 0;
   const mult = !mine ? 1 : wait < 5 * 60e3 ? 1.25 : wait > 30 * 60e3 ? .5 : 1;
   const g = ok ? Math.round(t.xp * mult) : 0;
@@ -56,39 +56,36 @@ function finish(t, ok){
 }
 
 // tasks
-const run = {
+const run = {   // each task starts the moment you press its request button
   feed(t){
-    btn('Give apple', b => {
-      b.disabled = true; { const f = spawn('food', APPLE, P.style.left || '50%', '0', 950); f.style.setProperty('--fall', (stageH() - pos.fb - .42 * P.offsetHeight - 22) + 'px') }
-      setTimeout(() => fx(P, 'eat', 1300), 800);
-      setTimeout(() => { heart(); finish(t, true) }, 2200);
-    });
+    const f = spawn('food', APPLE, P.style.left || '50%', '0', 950); f.style.setProperty('--fall', (stageH() - pos.fb - .42 * P.offsetHeight - 22) + 'px');
+    setTimeout(() => fx(P, 'eat', 1300), 800);
+    setTimeout(() => { heart(); finish(t, true) }, 2200);
   },
-  play(t){
-    let n = 0; const info = line('Throws: 0/3');
-    btn('Throw ball', b => {
-      b.disabled = true; spawn('ball', BALL, null, null, 1150).style.setProperty('--gb', pos.fb + 'px');
-      fx(P, 'chase', 1400);
-      setTimeout(() => { n++; info.textContent = `Throws: ${n}/3`; heart(); if (n >= 3) finish(t, true); else b.disabled = false }, 1500);
-    });
+  play(t){   // three throws, one after another
+    let n = 0;
+    const toss = () => {
+      spawn('ball', BALL, null, null, 1150).style.setProperty('--gb', pos.fb + 'px'); fx(P, 'chase', 1400);
+      setTimeout(() => { heart(); if (++n >= 3) finish(t, true); else toss() }, 1500);
+    };
+    toss();
   },
   pet(t){
-    line('Give your pet some love.');
-    btn('Pet', b => {
-      b.disabled = true;
-      const h = document.createElement('span'); h.className = 'hand'; h.innerHTML = HAND; P.append(h);
-      setTimeout(() => h.remove(), 2300);
-      fx(P, 'love', 1700);
-      [500, 900, 1300, 1700].forEach(ms => setTimeout(heart, ms));
-      setTimeout(() => finish(t, true), 2400);
-    });
+    const h = document.createElement('span'); h.className = 'hand'; h.innerHTML = HAND; P.append(h);
+    setTimeout(() => h.remove(), 2300); fx(P, 'love', 1700);
+    [500, 900, 1300, 1700].forEach(ms => setTimeout(heart, ms));
+    setTimeout(() => finish(t, true), 2400);
   },
-  clean(t){
-    let left = 6; const info = line('Pop the bubbles: 6 left');
-    for (let i = 0; i < 6; i++){
-      const el = spawn('bubble', '', (15 + R(65)) + '%', (10 + R(55)) + '%'); el.setAttribute('role', 'button');
-      el.onclick = () => { el.onclick = null; el.classList.add('pop'); setTimeout(() => el.remove(), 200);
-        info.textContent = `Pop the bubbles: ${--left} left`; if (!left) finish(t, true) };
+  clean(t){   // soap bubbles float around the pet and move with it; pop them all
+    let left = 6; const info = line(`Pop the bubbles: ${left} left`);
+    for (let i = 0; i < left; i++) {
+      const b = document.createElement('span'); b.className = 'soap'; b.innerHTML = SOAP;
+      b.style.cssText = `left:${-12 + R(78)}%;top:${-10 + R(66)}%;width:${22 + R(14)}%;animation-delay:-${R(16) / 10}s`;
+      b.onpointerdown = e => {
+        e.stopPropagation(); b.onpointerdown = null; b.classList.add('burst'); setTimeout(() => b.remove(), 260);
+        info.textContent = `Pop the bubbles: ${--left} left`; if (!left) setTimeout(() => finish(t, true), 300);
+      };
+      P.append(b);
     }
   },
   quiz(t){
@@ -97,7 +94,8 @@ const run = {
     o.forEach(v => { const b = document.createElement('button'); b.textContent = v; b.onclick = () => finish(t, v === a); w.append(b) }); act.append(w);
   }
 };
-function openTask(t){ act.replaceChildren(); $('#fx').replaceChildren(); toast(''); run[t.id](t) }
+let working = false;
+function openTask(t){ if (working) return; working = true; act.replaceChildren(); $('#fx').replaceChildren(); toast(''); run[t.id](t) }
 
 // view
 function draw(){
@@ -106,7 +104,8 @@ function draw(){
   const sleep = World.sleeping(), look = lookOf(st);
   P.classList.toggle('shiny', S.color === 'shiny'); P.classList.toggle('sleep', sleep);
   const key = `${S.species}${S.color}${st}${sad}${fly}${look}${sleep}`;
-  if (!P.firstChild || P.dataset.k !== key) { P.innerHTML = art(S.species, st, sad, fly, S.color, look, sleep); P.dataset.k = key }
+  const cur = [...P.children].find(c => c.tagName === 'svg');
+  if (!cur || P.dataset.k !== key) { const tmp = document.createElement('div'); tmp.innerHTML = art(S.species, st, sad, fly, S.color, look, sleep); if (cur) cur.replaceWith(tmp.firstChild); else P.prepend(tmp.firstChild); P.dataset.k = key }
   $('#set-care').textContent = `${Math.round(careOf() * 100)}%${look ? ' · ' + look : ''}`; $('#set-finds').textContent = World.findsText();
   $('#pname').textContent = S.name; $('#set-name').textContent = S.name;
   $('#s-sp').textContent = SP[S.species].n; $('#s-st').textContent = STAGES[st][1]; $('#s-age').textContent = Math.floor(age); $('#s-xp').textContent = S.xp;
@@ -223,10 +222,22 @@ function openVisit(r){
   $('#vwave').onclick = () => sendGift(r, 'wave'); $('#vtreat').onclick = () => sendGift(r, 'treat');
 }
 function closeVisit(){ $('#visit').hidden = true; $('#lb').hidden = false }
+function visitFx(kind){   // little animation in the visit scene
+  const sc = $('#vscene'), pet = sc.querySelector('svg');
+  const put = (cls, html, css, ms) => { const e = document.createElement('span'); e.className = cls; e.innerHTML = html; e.style.cssText = css; sc.append(e); setTimeout(() => e.remove(), ms) };
+  const hearts = ms => ms.forEach(m => setTimeout(() => put('heart', HEART, `left:${44 + R(20)}%;top:${28 + R(14)}%`, 1000), m));
+  if (kind === 'treat') {
+    put('food', APPLE, 'left:50%;top:0;--fall:98px', 950);
+    setTimeout(() => { pet.classList.add('eat'); setTimeout(() => pet.classList.remove('eat'), 1300) }, 800);
+    hearts([1300, 1700, 2100]);
+  } else { pet.classList.add('love'); setTimeout(() => pet.classList.remove('love'), 1700); hearts([300, 700, 1100]) }
+}
 async function sendGift(r, kind){
-  const m = $('#vmsg'); m.textContent = '';
+  const m = $('#vmsg'), bs = [$('#vwave'), $('#vtreat')]; m.textContent = ''; bs.forEach(b => { b.disabled = true });
   const {error} = await sb.rpc('send_gift', {to_name: r.username, gift: kind});
-  m.textContent = error ? (/already/i.test(error.message) ? 'You already visited them today. Come back tomorrow.' : 'Couldn’t send that right now.') : kind === 'wave' ? `You waved at ${r.name}!` : `You left ${r.name} a treat!`;
+  if (error) { bs.forEach(b => { b.disabled = false }); m.textContent = /limit|already/i.test(error.message) ? 'That’s all you can give them today (5 a day). Come back tomorrow.' : 'Couldn’t send that right now.'; return }
+  visitFx(kind);
+  setTimeout(() => { m.textContent = kind === 'wave' ? `You waved at ${r.name}!` : `${r.name} loved the treat!`; bs.forEach(b => { b.disabled = false }) }, kind === 'treat' ? 2400 : 1800);
 }
 async function claimGifts(){   // visitors' waves (+3 XP) and treats (+8 XP)
   if (!sb || !user || !S) return;
@@ -302,7 +313,7 @@ $('#vback').onclick = () => { setMode('in'); screen('auth') };
 $('#un').oninput = e => { e.target.value = e.target.value.replace(/[^A-Za-z0-9]/g, '') };
 $('#ugo').onclick = saveUsername;
 $('#vclose').onclick = closeVisit; $('#tab-pet').onclick = () => showTab('pet'); $('#tab-board').onclick = () => showTab('board');
-$('#logout').onclick = async () => { await sb.auth.signOut(); localStorage.removeItem(KEY); localStorage.removeItem(UKEY); location.reload() };
+async function logoutNow(){ await sb.auth.signOut(); localStorage.removeItem(KEY); localStorage.removeItem(UKEY); location.reload() }
 // ---- pet name, settings, dragging ----
 const CFGKEY = KEY + '-cfg';
 const cfg = Object.assign({anim: true, notify: false, weather: false}, JSON.parse(localStorage.getItem(CFGKEY) || '{}'));
@@ -328,7 +339,7 @@ $('#ne').onkeydown = e => { if (e.key === 'Enter') saveRename(); if (e.key === '
 
 $('#tab-settings').onclick = () => showTab('settings'); $('#set-weather').onclick = () => World.toggleWeather();
 $('#set-rename').onclick = () => { showTab('pet'); openRename() };
-$('#set-logout').onclick = $('#logout').onclick;
+$('#set-logout').onclick = logoutNow;
 $('#set-reset').onclick = async () => {
   if (!confirm('Delete this pet and hatch a new egg? This can’t be undone.')) return;
   if (sb && user) { const {error} = await sb.from('pets').delete().eq('user_id', user.id); if (error) return alert('Couldn’t reset. Check your connection and try again.') }
