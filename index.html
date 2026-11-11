@@ -66,11 +66,13 @@
       </nav>
       <div id="petview">
         <div id="stage">
+          <div id="sky"></div>
           <div id="sun"></div>
           <div id="tree"></div>
           <div id="shadow" hidden></div>
           <div id="pet"></div>
           <div id="fx"></div>
+          <div id="wx"></div>
         </div>
         <div id="namerow"><h2 id="pname" tabindex="0" role="button" title="Click to rename"></h2><span id="pencil" aria-hidden="true"></span></div>
         <div id="nameedit" hidden>
@@ -97,12 +99,24 @@
       </div>
       <div id="lbbox" hidden>
         <h3>Global leaderboard</h3>
+        <p class="sub">Tap a player to visit their pet.</p>
         <div id="lb"></div>
+        <div id="visit" hidden>
+          <button id="vclose" class="ghost">← Back</button>
+          <div id="vscene"></div>
+          <h2 id="vname"></h2>
+          <p class="sub" id="vinfo"></p>
+          <p id="vmsg" role="status"></p>
+          <div class="opts"><button id="vwave">Wave</button><button id="vtreat">Give treat</button></div>
+        </div>
       </div>
       <div id="settings" hidden>
         <h3>Settings</h3>
         <div class="set"><div><b>Animations</b><small>Turn movement and effects on or off</small></div><button id="set-anim"></button></div>
         <div class="set"><div><b>Notifications</b><small>Tell me when my pet needs something (while the page is open)</small></div><button id="set-notify"></button></div>
+        <div class="set"><div><b>Real weather</b><small>Use your approximate location for rain, snow and clouds</small></div><button id="set-weather"></button></div>
+        <div class="set"><div><b>Care</b><small id="set-care"></small><small>Quick answers grow a polished adult, ignoring requests a scruffy one</small></div></div>
+        <div class="set"><div><b>Finds</b><small id="set-finds"></small></div></div>
         <div class="set"><div><b>Pet name</b><small id="set-name"></small><small>You can rename once per hour</small></div><button id="set-rename">Rename</button></div>
         <div class="set" id="set-acct" hidden><div><b>Account</b><small id="set-user"></small></div><button id="set-logout">Log out</button></div>
         <div class="set"><div><b>Start over</b><small>Delete this pet and hatch a new egg</small></div><button id="set-reset" class="danger">Reset</button></div>
@@ -113,6 +127,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
   <script src="sprites.js"></script>
   <script src="config.js"></script>
+  <script src="world.js"></script>
   <script src="game.js"></script>
 </body>
 </html>
