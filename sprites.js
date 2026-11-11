@@ -140,3 +140,7 @@ const COIN = item([['e',8,8,6.2,6.2,'b'], ['e',8,8,4,4,'d'], ['e',6,6,1.2,1.2,'w
 const GEM = item([['t',2,6,14,6,8,14.5,'b'], ['t',3.5,6,12.5,6,8,2,'l'], ['e',6.5,6.2,1,.8,'w']], {b:'#3cc8e8', d:'#2a9ab8', l:'#b8f0ff', w:'#fff'});
 const MOON = svg(raster([['e',16,16,9,9,'y'], ['e',20.5,13.5,8,8,''], ['e',11.5,19,1.4,1.4,'d']]), {y:'#f6f1c9', d:'#d9d3a0'});
 const CLOUD = svg(outlined(raster([['e',10,14,6,4,'b'], ['e',17,11,6,5,'b'], ['e',23,15,5,3.5,'b'], ['r',8,15,26,18,'b']], 32, 24)), {b:'#ffffff', d:'#dde6ef', o:'rgba(255,255,255,0)'});
+
+// soap bubble: a thin blue rim, a pink shimmer low on the right, a see-through middle and a bright highlight
+const SOAP = svg(raster([['e',12,12,11,11,'c'], ['e',13,13,9.8,9.8,'p'], ['e',11,11,9.4,9.4,'f'], ['e',7.5,7,2.4,1.3,'w'], ['e',16.8,16.8,.9,.9,'w']], 24, 24),
+  {c:'rgba(120,196,255,.95)', p:'rgba(255,170,225,.85)', f:'rgba(255,255,255,.16)', w:'#ffffff'});
