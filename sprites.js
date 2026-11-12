@@ -107,9 +107,9 @@ function wings(pal){   // big flapping wings for the flying dragon; two frames t
   return `<g class="w1">${mk([['t',-.5,13,-.5,23,-11,5,'d'], ['t',-.5,17,-.5,25,-11,15,'d']])}</g><g class="w2">${mk([['t',-.5,17,-.5,26,-11,30,'d'], ['t',-.5,14,-.5,22,-11,19,'d']])}</g>`;
 }
 const spark = (x, y, t) => `<g class="tw" style="animation-delay:${t}s" fill="#fff"><rect x="${x}" y="${y - 1}" width="1" height="3"/><rect x="${x - 1}" y="${y}" width="3" height="1"/></g>`;
-function art(sp, st, sad, fly, ci = 0, look = '', sleep = false){
+function art(sp, st, sad, fly, ci = 0, look = '', sleep = false, wear = null){
   const pal = palette(sp, ci);
-  const extra = (fly && sp === 'dragon' ? wings(pal) : '') + (ci === 'shiny' ? spark(3, 6, 0) + spark(28, 10, .4) + spark(5, 24, .8) + spark(27, 26, .2) : '');
+  const extra = (fly && sp === 'dragon' ? wings(pal) : '') + (ci === 'shiny' ? spark(3, 6, 0) + spark(28, 10, .4) + spark(5, 24, .8) + spark(27, 26, .2) : '') + gear(sp, wear);
   return svg(outlined(raster(shapesFor(sp, st, sad, look, sleep))), pal, extra);
 }
 
@@ -144,3 +144,48 @@ const CLOUD = svg(outlined(raster([['e',10,14,6,4,'b'], ['e',17,11,6,5,'b'], ['e
 // soap bubble: a thin blue rim, a pink shimmer low on the right, a see-through middle and a bright highlight
 const SOAP = svg(raster([['e',12,12,11,11,'c'], ['e',13,13,9.8,9.8,'p'], ['e',11,11,9.4,9.4,'f'], ['e',7.5,7,2.4,1.3,'w'], ['e',16.8,16.8,.9,.9,'w']], 24, 24),
   {c:'rgba(120,196,255,.95)', p:'rgba(255,170,225,.85)', f:'rgba(255,255,255,.16)', w:'#ffffff'});
+
+// ---- cosmetics crafted from finds: hats and necklaces are drawn on the pet, scene items sit on the grass
+const GP = {o:INK, t:'#7a4a2a', d:'#5c3a22', r:'#e5484d', w:'#fff', g:'#f2b705', y:'#fff1a8', a:'#f08aa0', f:'#8fd3ff', c:'#e5484d', u:'#3cc8e8', v:'#b8f0ff', s:'#8a8f99', q:'#f2a81d'};
+const GEAR = {
+  acorncap:  {n:'Acorn Cap',      slot:'hat',   cost:{acorn:3}},
+  feather:   {n:'Feather Band',   slot:'hat',   cost:{feather:3}},
+  shroomhat: {n:'Mushroom Hat',   slot:'hat',   cost:{mushroom:3}},
+  crown:     {n:'Crown',          slot:'hat',   cost:{coin:2, gem:1}},
+  pendant:   {n:'Coin Pendant',   slot:'neck',  cost:{coin:3}},
+  gemcollar: {n:'Gem Collar',     slot:'neck',  cost:{gem:2}},
+  patch:     {n:'Mushroom Patch', slot:'decor', cost:{mushroom:5}},
+  statue:    {n:'Gem Statue',     slot:'decor', cost:{gem:3}}
+};
+const HATS = {   // ay = where the top of this animal's head is
+  acorncap:  ay => [['r',15.4,ay - 5.2,16.6,ay - 2,'t'], ['e',16,ay - .8,6.4,3.2,'t'], ['e',16,ay + .6,5.4,1.1,'d']],
+  feather:   ay => [['r',9.5,ay - .6,22.5,ay + 1,'c'], ['e',22.4,ay - 3.6,1.7,4,'f'], ['r',22.1,ay - .2,22.8,ay + 1,'d']],
+  shroomhat: ay => [['e',16,ay - 1.6,7.6,3.9,'r'], ['r',8.4,ay - .8,23.6,ay + .8,'r'], ['e',12.4,ay - 2.6,1.1,1.1,'w'], ['e',16,ay - 4.2,1.1,1.1,'w'], ['e',19.8,ay - 2.2,1.1,1.1,'w']],
+  crown:     ay => [['r',10.5,ay - 1.6,21.5,ay + .9,'g'], ['t',10.5,ay - 1.6,12.3,ay - 5.2,14.1,ay - 1.6,'g'], ['t',14.4,ay - 1.6,16,ay - 6,17.6,ay - 1.6,'g'], ['t',17.9,ay - 1.6,19.7,ay - 5.2,21.5,ay - 1.6,'g'], ['e',16,ay - .4,1.1,.7,'a']]
+};
+const NECK = {
+  pendant:   [['r',10.5,21.2,21.5,22.2,'q'], ['e',16,24.4,2.4,2.4,'g'], ['e',16,24.4,1.2,1.2,'y']],
+  gemcollar: [['r',10.5,21.2,21.5,22.6,'u'], ['t',14.2,22.6,17.8,22.6,16,25.6,'v']]
+};
+const ANCHOR = {dog:4, cat:5, frog:3.5, dragon:5, bunny:6, fox:5.5, hamster:4.5, owl:5.5, penguin:7.5};
+function gear(sp, w){
+  if (!w) return '';
+  let r = '';
+  if (w.hat && HATS[w.hat]) { const ay = ANCHOR[sp]; r += rects(outlined(raster(HATS[w.hat](ay), 32, 16, 0, ay - 12)), GP, 0, ay - 12) }
+  if (w.neck && NECK[w.neck]) r += rects(outlined(raster(NECK[w.neck], 32, 12, 0, 18)), GP, 0, 18);
+  return r;
+}
+function crop(g){
+  const ys = g.map((r, y) => r.some(c => c) ? y : -1).filter(y => y >= 0), xs = [...Array(g[0].length).keys()].filter(x => g.some(r => r[x]));
+  return g.slice(ys[0], ys[ys.length - 1] + 1).map(r => r.slice(xs[0], xs[xs.length - 1] + 1));
+}
+const DECOR = {
+  patch: svg(outlined(raster([['r',5,10,7,17,'s'], ['r',14,8,16,17,'s'], ['r',21,12,23,17,'s'], ['e',6,9,5,3.4,'r'], ['e',15,6.6,4.2,2.8,'r'], ['e',22,11,3.4,2.4,'r'],
+    ['e',4.5,8.4,.9,.9,'w'], ['e',7.5,9.4,.9,.9,'w'], ['e',14,5.8,.9,.9,'w'], ['e',16.6,7,.8,.8,'w'], ['e',21,10.4,.8,.8,'w']], 28, 19)), Object.assign({}, GP, {s:'#f2e6d0'})),
+  statue: svg(outlined(raster([['r',3,22,17,27,'s'], ['r',6,17,14,22,'s'], ['t',3,10,17,10,10,18,'u'], ['t',5,10,15,10,10,3,'v'], ['e',7.6,8.4,1.3,.9,'w']], 20, 28)), GP)
+};
+function gearIcon(id){
+  const d = GEAR[id]; if (d.slot === 'decor') return DECOR[id];
+  return svg(crop(outlined(raster(d.slot === 'hat' ? HATS[id](12) : NECK[id], 32, 32))), GP);
+}
+const TROPHY = svg(outlined(raster([['r',6,12.4,10,14.5,'g'], ['r',4.5,14,11.5,15.6,'g'], ['e',8,6.2,4.8,4.8,'g'], ['r',3.2,1.6,12.8,6.2,'g'], ['e',2.8,5,2,2.4,'g'], ['e',13.2,5,2,2.4,'g'], ['e',6,4.2,1,1.8,'y']], 16, 17)), {o:INK, g:'#f2b705', y:'#fff1a8'});
