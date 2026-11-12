@@ -98,5 +98,5 @@ const World = (() => {
     checkFind();
   }
   function tick(){ if (S) { S.seen = Date.now(); showFind() } }
-  return {init, tick, sleeping, perched, cancel, toggleWeather, findsText, season, night, wx, behave, scene, fetchWx};
+  return {init, tick, sleeping, perched, cancel, toggleWeather, findsText, season, night, wx, behave, scene, fetchWx, ITEMS};
 })();
