@@ -49,7 +49,7 @@ function finish(t, ok){
   const mult = !mine ? 1 : wait < 5 * 60e3 ? 1.25 : wait > 30 * 60e3 ? .5 : 1;
   const g = ok ? Math.round(t.xp * mult) : 0;
   S.xp += g;
-  if (ok) { S.m[k] = Math.min(100, S.m[k] + 60); S.rate[k] = .75 + Math.random() * .5 }   // new pace each time, so it isn't predictable
+  if (ok) { S.st.done[t.id] = (S.st.done[t.id] || 0) + 1; if (mine && wait < 60e3) S.st.fast = (S.st.fast || 0) + 1; S.m[k] = Math.min(100, S.m[k] + 60); S.rate[k] = .75 + Math.random() * .5 }   // new pace each time, so it isn't predictable
   if (mine && ok) { S.cs = (S.cs || 0) + (wait < 5 * 60e3 ? 1 : wait > 30 * 60e3 ? .2 : .6); S.cn = (S.cn || 0) + 1; S.req = null; S.gap = Date.now() + 15e3 }                              // short breather before the next request
   save(); act.replaceChildren(); draw();
   toast(ok ? `+${g} XP${mult === 1.25 ? ' (quick bonus)' : mult === .5 ? ' (half, it waited a long time)' : ''}` : 'Not quite. Try again.');
@@ -83,7 +83,7 @@ const run = {   // each task starts the moment you press its request button
       b.style.cssText = `left:${-12 + R(78)}%;top:${-10 + R(66)}%;width:${22 + R(14)}%;animation-delay:-${R(16) / 10}s`;
       b.onpointerdown = e => {
         e.stopPropagation(); b.onpointerdown = null; b.classList.add('burst'); setTimeout(() => b.remove(), 260);
-        info.textContent = `Pop the bubbles: ${--left} left`; if (!left) setTimeout(() => finish(t, true), 300);
+        S.st.pops = (S.st.pops || 0) + 1; info.textContent = `Pop the bubbles: ${--left} left`; if (!left) setTimeout(() => finish(t, true), 300);
       };
       P.append(b);
     }
@@ -103,10 +103,10 @@ function draw(){
   const fly = placePet(st); P.classList.toggle('elder', st === 4); P.classList.toggle('sad', sad);
   const sleep = World.sleeping(), look = lookOf(st);
   P.classList.toggle('shiny', S.color === 'shiny'); P.classList.toggle('sleep', sleep);
-  const key = `${S.species}${S.color}${st}${sad}${fly}${look}${sleep}`;
+  const key = `${S.species}${S.color}${st}${sad}${fly}${look}${sleep}${JSON.stringify(S.wear || {})}`;
   const cur = [...P.children].find(c => c.tagName === 'svg');
-  if (!cur || P.dataset.k !== key) { const tmp = document.createElement('div'); tmp.innerHTML = art(S.species, st, sad, fly, S.color, look, sleep); if (cur) cur.replaceWith(tmp.firstChild); else P.prepend(tmp.firstChild); P.dataset.k = key }
-  $('#set-care').textContent = `${Math.round(careOf() * 100)}%${look ? ' · ' + look : ''}`; $('#set-finds').textContent = World.findsText();
+  if (!cur || P.dataset.k !== key) { const tmp = document.createElement('div'); tmp.innerHTML = art(S.species, st, sad, fly, S.color, look, sleep, S.wear); if (cur) cur.replaceWith(tmp.firstChild); else P.prepend(tmp.firstChild); P.dataset.k = key }
+  $('#set-care').textContent = `${Math.round(careOf() * 100)}%${look ? ' · ' + look : ''}`; Extras.decor();
   $('#pname').textContent = S.name; $('#set-name').textContent = S.name;
   $('#s-sp').textContent = SP[S.species].n; $('#s-st').textContent = STAGES[st][1]; $('#s-age').textContent = Math.floor(age); $('#s-xp').textContent = S.xp;
   $('#s-mood').textContent = n.feed < 30 ? 'Hungry' : n.social < 30 ? 'Lonely' : n.clean < 30 ? 'Dirty' : n.mind < 30 ? 'Bored' : (n.p >= 65 ? 'Happy' : 'Okay'); $('#stats').classList.toggle('sad', sad);
@@ -116,7 +116,7 @@ function tick(){
   if (!S) return; const n = needs();
   $('#bh').style.width = n.h + '%'; $('#bp').style.width = n.p + '%'; $('#lh').hidden = n.h >= 35;   // hunger only shows when really hungry
   if (S.req && !S.req.neg && Date.now() - S.req.at > 60 * 60e3) { S.req.neg = true; S.cn = (S.cn || 0) + 1 }   // ignored for an hour: counts against its care
-  World.tick();
+  World.tick(); Extras.tick();
   if (!S.req && Date.now() >= (S.gap || 0)) {
     let k = null; for (const x in RATE) if (n[x] < ASK && (!k || n[x] < n[k])) k = x;                   // the most urgent need below the ask line
     if (k) ask(k === 'feed' ? 'feed' : k === 'clean' ? 'clean' : k === 'mind' ? 'quiz' : n.social < URGENT ? 'pet' : 'play');
@@ -127,7 +127,7 @@ function showGame(){
   World.init();
   if (!S.m) { S.m = {feed: S.hunger ?? 80, social: S.happy ?? 80, clean: 80, mind: 80}; S.rate = {feed: 1, social: 1, clean: 1, mind: 1}; S.t = S.t || Date.now(); save() }
   if (S.color === undefined) { S.color = R(SP[S.species].colors.length); save() }
-  draw(); setInterval(() => { tick(); draw() }, 1000);
+  Extras.init(); draw(); setInterval(() => { tick(); draw() }, 1000);
 }
 function showEgg(){
   $('#egg').hidden = false; $('#eggart').innerHTML = EGG; let sp, col;
@@ -166,6 +166,7 @@ function adminPanel(){
   grp('Stage', STAGES.map(s => [s[1], () => adminSet(() => { S.xp = xpForAge(s[0]) })]));
   grp('Needs', [['Fill', () => adminSet(() => { for (const k in RATE) S.m[k] = 100; S.t = Date.now() })], ['Sad', () => adminSet(() => { for (const k in RATE) S.m[k] = 10; S.t = Date.now() })]]);
   grp('Request', [...TASKS.map(t => [t.n, () => adminSet(() => { commit(); S.m[NEED[t.id]] = Math.min(S.m[NEED[t.id]], 20); ask(t.id) })]), ['Clear', () => adminSet(() => { S.req = null; S.gap = 0 })]]);
+  grp('Finds & days', [['+5 finds', () => adminSet(() => { Extras.ensure(); for (const k in World.ITEMS) S.finds[k] = (S.finds[k] || 0) + 5 })], ['Fresh egg', () => adminSet(() => { S.eggDay = '' })], ['Next day', () => adminSet(() => Extras.nextDay())]]);
   grp('Pet', [['New egg', () => { localStorage.removeItem(KEY); location.reload() }]]);
   document.body.append(d);
 }
@@ -236,7 +237,7 @@ async function sendGift(r, kind){
   const m = $('#vmsg'), bs = [$('#vwave'), $('#vtreat')]; m.textContent = ''; bs.forEach(b => { b.disabled = true });
   const {error} = await sb.rpc('send_gift', {to_name: r.username, gift: kind});
   if (error) { bs.forEach(b => { b.disabled = false }); m.textContent = /limit|already/i.test(error.message) ? 'That’s all you can give them today (5 a day). Come back tomorrow.' : 'Couldn’t send that right now.'; return }
-  visitFx(kind);
+  visitFx(kind); S.st.gifts = (S.st.gifts || 0) + 1; save();
   setTimeout(() => { m.textContent = kind === 'wave' ? `You waved at ${r.name}!` : `${r.name} loved the treat!`; bs.forEach(b => { b.disabled = false }) }, kind === 'treat' ? 2400 : 1800);
 }
 async function claimGifts(){   // visitors' waves (+3 XP) and treats (+8 XP)
@@ -246,10 +247,12 @@ async function claimGifts(){   // visitors' waves (+3 XP) and treats (+8 XP)
   const xp = data.reduce((a, g) => a + (g.kind === 'treat' ? 8 : 3), 0), who = [...new Set(data.map(g => g.from_name))];
   S.xp += xp; save(); draw(); toast(`${who.slice(0, 2).join(' and ')}${who.length > 2 ? ' and others' : ''} visited ${S.name}! +${xp} XP`);
 }
+const PANELS = {pet:'#petview', finds:'#findsbox', trophies:'#trophybox', board:'#lbbox', settings:'#settings'};
 function showTab(t){
-  $('#petview').hidden = t !== 'pet'; $('#lbbox').hidden = t !== 'board'; $('#settings').hidden = t !== 'settings';
-  ['pet', 'board', 'settings'].forEach(k => $('#tab-' + k).classList.toggle('on', k === t));
+  for (const k in PANELS) { $(PANELS[k]).hidden = k !== t; $('#tab-' + k).classList.toggle('on', k === t) }
   if (t === 'board') { closeVisit(); loadBoard() }
+  if (t === 'finds') Extras.render();
+  if (t === 'trophies') Extras.renderTrophies();
   if (t === 'pet' && S) draw();                                   // re-place the pet now that the stage is visible again
 }
 
@@ -337,7 +340,7 @@ $('#pname').onkeydown = e => { if (e.key === 'Enter') openRename() };
 $('#nesave').onclick = saveRename; $('#necancel').onclick = closeRename;
 $('#ne').onkeydown = e => { if (e.key === 'Enter') saveRename(); if (e.key === 'Escape') closeRename() };
 
-$('#tab-settings').onclick = () => showTab('settings'); $('#set-weather').onclick = () => World.toggleWeather();
+$('#tab-settings').onclick = () => showTab('settings'); $('#tab-finds').onclick = () => showTab('finds'); $('#tab-trophies').onclick = () => showTab('trophies'); $('#set-weather').onclick = () => World.toggleWeather();
 $('#set-rename').onclick = () => { showTab('pet'); openRename() };
 $('#set-logout').onclick = logoutNow;
 $('#set-reset').onclick = async () => {
