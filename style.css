@@ -195,3 +195,37 @@ input{font:inherit;width:100%;padding:10px;margin:8px 0 12px;border:3px solid va
 @keyframes burst{to{transform:scale(1.7);opacity:0}}
 #vscene .food,#vscene .heart{position:absolute}
 #vscene .heart svg,#vscene .food svg{display:block;width:100%}
+
+#tabs button{font-size:14px;padding:8px 2px}
+#findsbox h3,#trophybox h3{margin:0 0 8px;font-size:20px}
+.card2{display:flex;gap:12px;align-items:center;margin-bottom:12px;padding:10px;border:3px solid var(--ink);background:#fff}
+.card2 small,#findsbox small,.trophy small{display:block;color:var(--mute);font-size:14px}
+.dots{display:flex;gap:4px;margin-top:6px}
+.dots i{width:18px;height:18px;border:3px solid var(--ink);background:#dfe6f0}
+.dots i.on{background:var(--btn)}
+#eggimg svg{display:block;width:56px;height:56px;image-rendering:pixelated}
+.reveal{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.reveal div{width:44px;text-align:center;font-size:14px}
+.reveal svg{display:block;width:30px;margin:0 auto;image-rendering:pixelated}
+.grid{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:16px}
+.item{padding:4px 0;border:3px solid var(--ink);background:#fff;text-align:center;font-size:15px}
+.item svg{display:block;width:30px;margin:auto;image-rendering:pixelated}
+.item.none svg{filter:grayscale(1);opacity:.3}
+.item small{text-transform:capitalize}
+.recipe{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:3px dotted #b8c2d4}
+.recipe .ic{width:48px;flex:none}
+.recipe .ic svg{display:block;width:100%;max-height:44px;image-rendering:pixelated}
+.recipe .body{flex:1;min-width:0}
+.recipe button{min-width:84px;padding:6px 8px}
+.cost{display:inline-flex;align-items:center;gap:2px;margin-right:8px;font-size:14px}
+.cost svg{width:16px;image-rendering:pixelated}
+.cost.lack{color:#c0392b}
+#shelf{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.trophy{padding:8px 6px;border:3px solid var(--ink);background:#fff;text-align:center}
+.trophy svg{display:block;width:36px;margin:0 auto 4px;image-rendering:pixelated;filter:grayscale(1) brightness(.7);opacity:.35}
+.trophy.got{background:#fff3c4}
+.trophy.got svg{filter:none;opacity:1}
+.trophy em{font-style:normal;font-size:13px;color:var(--mute)}
+#tab-finds.ping::after{content:'';display:inline-block;width:8px;height:8px;margin-left:4px;vertical-align:top;background:#e5484d}
+#decor{position:absolute;right:5%;bottom:19%;width:76px;z-index:1;pointer-events:none}
+#decor svg{display:block;width:100%;image-rendering:pixelated}
