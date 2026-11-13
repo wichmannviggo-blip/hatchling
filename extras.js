@@ -65,7 +65,7 @@ const Extras = (() => {
     $('#shop').innerHTML = Object.keys(GEAR).map(id => {
       const g = GEAR[id], owned = S.owned[id], worn = S.wear[g.slot] === id, can = Object.keys(g.cost).every(k => (S.finds[k] || 0) >= g.cost[k]);
       const cost = Object.keys(g.cost).map(k => `<span class="cost ${(S.finds[k] || 0) >= g.cost[k] ? '' : 'lack'}">${I[k].svg}${S.finds[k] || 0}/${g.cost[k]}</span>`).join('');
-      return `<div class="recipe"><div class="ic">${gearIcon(id)}</div><div class="body"><b>${g.n}</b><small>${{hat: 'Hat', neck: 'Neck', decor: 'Scene'}[g.slot]}</small>${owned ? '' : cost}</div>
+      return `<div class="recipe${worn ? ' worn' : ''}"><div class="ic">${gearIcon(id)}</div><div class="body"><b>${g.n}</b><span class="slot">${{hat: 'Hat', neck: 'Neck', decor: 'Scene'}[g.slot]}</span><div class="costs">${owned ? `<small>${worn ? 'Worn right now' : 'In your wardrobe'}</small>` : cost}</div></div>
         <button data-id="${id}" data-a="${owned ? (worn ? 'remove' : 'wear') : 'craft'}" ${!owned && !can ? 'disabled' : ''}>${owned ? (worn ? 'Remove' : 'Wear') : 'Craft'}</button></div>`;
     }).join('');
     $('#shop').querySelectorAll('button').forEach(b => { b.onclick = () => use(b.dataset.id, b.dataset.a) });
