@@ -170,11 +170,13 @@ function adminPanel(){
   grp('Pet', [['New egg', () => { localStorage.removeItem(KEY); location.reload() }]]);
   document.body.append(d);
 }
+const OWNER_NAMES = ['viko', 'test'];   // the owner's two accounts
 const OWNER_EMAIL_HASH = '3250a962aa84e6cf56c02c24c30c7f51a85cefe40c3925be3aa0647d15002212';
-async function ownerCheck(){   // only the owner's profile gets the admin button (cosmetic: the code prompt is still required)
-  let ok = (username || '').toLowerCase() === 'viko';
-  try { ok = ok || !!(user && user.email && await sha(user.email.toLowerCase()) === OWNER_EMAIL_HASH) } catch (e) {}
+async function ownerCheck(){   // admin and the account switch are only for the owner's profiles (cosmetic: the code prompt is still required for admin)
+  const me = (username || '').toLowerCase(), mine = OWNER_NAMES.includes(me);
+  let ok = mine; try { ok = ok || !!(user && user.email && await sha(user.email.toLowerCase()) === OWNER_EMAIL_HASH) } catch (e) {}
   $('#adminbtn').hidden = !ok;
+  const sw = $('#switchbtn'); sw.hidden = !mine; if (mine) sw.textContent = 'Switch to ' + OWNER_NAMES.find(n => n !== me);
 }
 $('#adminbtn').onclick = async () => {
   if (!adminOn) {
@@ -300,7 +302,7 @@ async function saveUsername(){
   username = v; localStorage.setItem(UKEY, v); start();
 }
 async function start(){
-  screen(''); $('#acct').hidden = false; $('#tab-board').hidden = false; $('#set-acct').hidden = false; $('#set-user').textContent = username || 'player'; ownerCheck(); $('#who').textContent = username || 'player';
+  screen(''); $('#acct').hidden = false; $('#tab-board').hidden = false; $('#set-acct').hidden = false; $('#set-user').textContent = username || 'player'; ownerCheck(); saveAcct(); $('#who').textContent = username || 'player';
   let remote = null;
   try { const {data} = await sb.from('pets').select('*').maybeSingle(); if (data) remote = fromRow(data) } catch (e) {}
   if (remote && (!S || remote.u >= (S.u || 0))) { S = remote; localStorage.setItem(KEY, JSON.stringify(S)) } else if (S) push();
@@ -316,7 +318,31 @@ $('#vback').onclick = () => { setMode('in'); screen('auth') };
 $('#un').oninput = e => { e.target.value = e.target.value.replace(/[^A-Za-z0-9]/g, '') };
 $('#ugo').onclick = saveUsername;
 $('#vclose').onclick = closeVisit; $('#tab-pet').onclick = () => showTab('pet'); $('#tab-board').onclick = () => showTab('board');
-async function logoutNow(){ await sb.auth.signOut(); localStorage.removeItem(KEY); localStorage.removeItem(UKEY); location.reload() }
+function reloadPage(){ location.reload() }
+const ACCTS = 'hatchling-accounts', HINT = 'hatchling-login-hint';
+const accts = () => { try { return JSON.parse(localStorage.getItem(ACCTS)) || {} } catch (e) { return {} } };
+async function logoutNow(){
+  const a = accts(); delete a[(username || '').toLowerCase()]; localStorage.setItem(ACCTS, JSON.stringify(a));
+  await sb.auth.signOut(); localStorage.removeItem(KEY); localStorage.removeItem(UKEY); reloadPage();
+}
+async function saveAcct(){   // remember this session in this browser so the owner can come back to it with one click
+  if (!sb || !OWNER_NAMES.includes((username || '').toLowerCase())) return;
+  const {data} = await sb.auth.getSession(); if (!data || !data.session) return;
+  const a = accts(); a[username.toLowerCase()] = {access_token: data.session.access_token, refresh_token: data.session.refresh_token}; localStorage.setItem(ACCTS, JSON.stringify(a));
+}
+async function switchAcct(){
+  const me = (username || '').toLowerCase(), other = OWNER_NAMES.find(n => n !== me); if (!OWNER_NAMES.includes(me)) return;
+  $('#switchbtn').disabled = true;
+  await push(); await saveAcct();                                   // this pet is saved first, and this session is remembered
+  const a = accts(), target = a[other];
+  localStorage.removeItem(KEY); localStorage.removeItem(UKEY);      // the other account loads its own pet
+  if (target) {
+    const {error} = await sb.auth.setSession(target);
+    if (!error) return reloadPage();
+    delete a[other]; localStorage.setItem(ACCTS, JSON.stringify(a));  // that session is gone: log in again once
+  }
+  localStorage.setItem(HINT, other); await sb.auth.signOut({scope: 'local'}); reloadPage();   // 'local' keeps this account's saved session valid
+}
 // ---- pet name, settings, dragging ----
 const CFGKEY = KEY + '-cfg';
 const cfg = Object.assign({anim: true, notify: false, weather: false}, JSON.parse(localStorage.getItem(CFGKEY) || '{}'));
@@ -342,7 +368,7 @@ $('#ne').onkeydown = e => { if (e.key === 'Enter') saveRename(); if (e.key === '
 
 $('#tab-settings').onclick = () => showTab('settings'); $('#tab-finds').onclick = () => showTab('finds'); $('#tab-trophies').onclick = () => showTab('trophies'); $('#set-weather').onclick = () => World.toggleWeather();
 $('#set-rename').onclick = () => { showTab('pet'); openRename() };
-$('#set-logout').onclick = logoutNow;
+$('#set-logout').onclick = logoutNow; $('#switchbtn').onclick = switchAcct;
 $('#set-reset').onclick = async () => {
   if (!confirm('Delete this pet and hatch a new egg? This can’t be undone.')) return;
   if (sb && user) { const {error} = await sb.from('pets').delete().eq('user_id', user.id); if (error) return alert('Couldn’t reset. Check your connection and try again.') }
@@ -423,5 +449,6 @@ $('#authlogo').innerHTML = EGG; setMode('in');
 (async () => {
   if (!sb) return S ? showGame() : showEgg();            // no server configured: local only
   const {data} = await sb.auth.getSession();            // works offline too (session is cached)
-  if (data.session) enter(data.session.user); else screen('auth');
+  if (data.session) enter(data.session.user);
+  else { screen('auth'); const h = localStorage.getItem(HINT); if (h) { $('#auth-sub').textContent = `Log in to ${h} once. After that, switching takes one click.`; localStorage.removeItem(HINT) } }
 })();
