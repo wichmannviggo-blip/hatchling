@@ -7,9 +7,11 @@ const TASKS = [
   {id:'pet', n:'Pet', xp:4, happy:15}, {id:'clean', n:'Clean', xp:8, happy:20}, {id:'quiz', n:'Quiz', xp:15, happy:20}
 ];
 let dirty = false;
-let S = JSON.parse(localStorage.getItem(KEY) || 'null');
+let CACHE = KEY;      // where this browser keeps the pet. Guests use 'hatchling'; every account gets its own slot (set in enter()), so accounts can never mix
+const readCache = () => { try { return JSON.parse(localStorage.getItem(CACHE) || 'null') } catch (e) { return null } };
+let S = readCache();
 const P = $('#pet'), act = $('#act');
-const save = () => { S.u = Date.now(); localStorage.setItem(KEY, JSON.stringify(S)); dirty = true; push() };
+const save = () => { S.u = Date.now(); localStorage.setItem(CACHE, JSON.stringify(S)); dirty = true; push() };
 
 const careOf = () => S.cn ? S.cs / S.cn : .5;                                    // 0..1: how quickly its requests were answered
 const lookOf = st => st >= 3 && (S.cn || 0) >= 8 ? (careOf() >= .75 ? 'polished' : careOf() <= .4 ? 'scruffy' : '') : '';
@@ -163,11 +165,11 @@ function adminPanel(){
   };
   grp('Animal', Object.keys(SP).map(k => [SP[k].n, () => adminSet(() => { S.species = k; S.color = 0 })]));
   grp('Color', [...SP[S ? S.species : 'cat'].colors.map((c, i) => [c.n, () => adminSet(() => { S.color = i })]), ['Shiny', () => adminSet(() => { S.color = 'shiny' })]]);
-  grp('Stage', STAGES.map(s => [s[1], () => adminSet(() => { S.xp = xpForAge(s[0]) })]));
+  grp('Stage', [...STAGES.map(s => [s[1], () => adminSet(() => { S.xp = xpForAge(s[0]) })]), ['Age 100', () => adminSet(() => { S.xp = xpForAge(100) })]]);
   grp('Needs', [['Fill', () => adminSet(() => { for (const k in RATE) S.m[k] = 100; S.t = Date.now() })], ['Sad', () => adminSet(() => { for (const k in RATE) S.m[k] = 10; S.t = Date.now() })]]);
   grp('Request', [...TASKS.map(t => [t.n, () => adminSet(() => { commit(); S.m[NEED[t.id]] = Math.min(S.m[NEED[t.id]], 20); ask(t.id) })]), ['Clear', () => adminSet(() => { S.req = null; S.gap = 0 })]]);
   grp('Finds & days', [['+5 finds', () => adminSet(() => { Extras.ensure(); for (const k in World.ITEMS) S.finds[k] = (S.finds[k] || 0) + 5 })], ['Fresh egg', () => adminSet(() => { S.eggDay = '' })], ['Next day', () => adminSet(() => Extras.nextDay())]]);
-  grp('Pet', [['New egg', () => { localStorage.removeItem(KEY); location.reload() }]]);
+  grp('Pet', [['New egg', async () => { if (sb && user) await resetRemote(); localStorage.removeItem(CACHE); location.reload() }]]);
   document.body.append(d);
 }
 const OWNER_NAMES = ['viko', 'test'];   // the owner's two accounts
@@ -192,7 +194,7 @@ $('#adminbtn').onclick = async () => {
 // The pet is saved in the browser first, then synced. Offline play keeps working and syncs when you're back online.
 const sb = (window.supabase && typeof SUPABASE_URL === 'string' && SUPABASE_URL.startsWith('http')) ? supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
 let user = null, username = '', mode = 'in';
-const UKEY = KEY + '-user';
+let UKEY = KEY + '-user';   // cached username, also one slot per account
 const toRow = () => ({user_id: user.id, name: S.name, species: S.species, xp: S.xp, state: (({name, species, xp, u, ...rest}) => rest)(S), updated: S.u});
 const fromRow = r => ({name: r.name, species: r.species, xp: r.xp, ...r.state, u: r.updated});
 const screen = id => ['auth', 'verify', 'uname'].forEach(x => { $('#' + x).hidden = x !== id });
@@ -287,7 +289,7 @@ async function authDo(){
   } finally { btn.disabled = false }
 }
 async function enter(u){
-  user = u;
+  user = u; CACHE = KEY + '-u-' + u.id; UKEY = KEY + '-user-' + u.id; S = readCache();   // this account's own saved copy, never another account's or a guest's
   const {data, error} = await sb.from('profiles').select('username').maybeSingle();
   if (!error && !data) return screen('uname');                   // verified, but no username yet
   username = data ? data.username : (localStorage.getItem(UKEY) || '');
@@ -305,7 +307,11 @@ async function start(){
   screen(''); $('#acct').hidden = false; $('#tab-board').hidden = false; $('#set-acct').hidden = false; $('#set-user').textContent = username || 'player'; ownerCheck(); saveAcct(); $('#who').textContent = username || 'player';
   let remote = null;
   try { const {data} = await sb.from('pets').select('*').maybeSingle(); if (data) remote = fromRow(data) } catch (e) {}
-  if (remote && (!S || remote.u >= (S.u || 0))) { S = remote; localStorage.setItem(KEY, JSON.stringify(S)) } else if (S) push();
+  if (remote && !remote.species) {                            // reset marker: this account starts over, unless this device has a newer pet
+    if (!S || remote.u >= (S.u || 0)) { S = null; localStorage.removeItem(CACHE) }
+    remote = null;
+  }
+  if (remote && (!S || remote.u >= (S.u || 0))) { S = remote; localStorage.setItem(CACHE, JSON.stringify(S)) } else if (S) push();
   S ? showGame() : showEgg(); loadBoard(); claimGifts();
 }
 
@@ -323,8 +329,9 @@ const ACCTS = 'hatchling-accounts', HINT = 'hatchling-login-hint';
 const accts = () => { try { return JSON.parse(localStorage.getItem(ACCTS)) || {} } catch (e) { return {} } };
 async function logoutNow(){
   const a = accts(); delete a[(username || '').toLowerCase()]; localStorage.setItem(ACCTS, JSON.stringify(a));
-  await sb.auth.signOut(); localStorage.removeItem(KEY); localStorage.removeItem(UKEY); reloadPage();
+  await sb.auth.signOut(); localStorage.removeItem(CACHE); localStorage.removeItem(UKEY); reloadPage();
 }
+const resetRemote = () => sb.from('pets').upsert({user_id: user.id, name: '', species: '', xp: 0, state: {}, updated: Date.now()});
 async function saveAcct(){   // remember this session in this browser so the owner can come back to it with one click
   if (!sb || !OWNER_NAMES.includes((username || '').toLowerCase())) return;
   const {data} = await sb.auth.getSession(); if (!data || !data.session) return;
@@ -335,7 +342,6 @@ async function switchAcct(){
   $('#switchbtn').disabled = true;
   await push(); await saveAcct();                                   // this pet is saved first, and this session is remembered
   const a = accts(), target = a[other];
-  localStorage.removeItem(KEY); localStorage.removeItem(UKEY);      // the other account loads its own pet
   if (target) {
     const {error} = await sb.auth.setSession(target);
     if (!error) return reloadPage();
@@ -371,8 +377,8 @@ $('#set-rename').onclick = () => { showTab('pet'); openRename() };
 $('#set-logout').onclick = logoutNow; $('#switchbtn').onclick = switchAcct;
 $('#set-reset').onclick = async () => {
   if (!confirm('Delete this pet and hatch a new egg? This can’t be undone.')) return;
-  if (sb && user) { const {error} = await sb.from('pets').delete().eq('user_id', user.id); if (error) return alert('Couldn’t reset. Check your connection and try again.') }
-  localStorage.removeItem(KEY); location.reload();
+  if (sb && user) { const {error} = await resetRemote(); if (error) return alert('Couldn’t reset. Check your connection and try again.') }
+  localStorage.removeItem(CACHE); location.reload();
 };
 
 // Depth: lower on the grass = closer = bigger, higher = further away = smaller. Only the dragon can leave the grass and fly.
